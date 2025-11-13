@@ -30,7 +30,7 @@ button, .btn{background:var(--accent);color:#fff;border:0;padding:10px 14px;bord
 input[type=text], input[type=search], textarea, select{width:100%;padding:10px;border-radius:10px;border:1px solid #e7e7e7}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
 .thumb{height:160px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .thumb img{max-width:100%;max-height:100%;object-fit:contain}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:8px}
@@ -49,6 +49,8 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 .thumb-preview{width:84px;height:84px;border-radius:10px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:8px}
 
 @media (max-width:600px){.thumb{height:140px}.grid{grid-template-columns:repeat(2,1fr);}}
+
+/* Layout breakpoints */
 @media (min-width:601px) and (max-width:900px){.grid{grid-template-columns:repeat(3,1fr);}}
 @media (min-width:901px){.grid{grid-template-columns:repeat(4,1fr);}}
 
@@ -63,6 +65,27 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 #img-modal span{position:absolute;top:20px;right:30px;color:#fff;font-size:32px;cursor:pointer;font-weight:bold}
 
 #admin-resize{width:100%;height:8px;cursor:ns-resize;background:#eee;border-radius:4px;margin-bottom:8px;}
+
+/* --- Improved admin buttons for mobile --- */
+.admin-actions{display:flex;gap:6px;align-items:center}
+.admin-actions .small{padding:6px 8px;border-radius:10px;font-size:13px}
+
+/* On small screens make admin buttons larger and touch-friendly */
+@media (max-width:600px){
+  .admin-actions .small{padding:10px 12px;font-size:15px;border-radius:12px}
+  .card .admin-actions{position:absolute;right:10px;bottom:12px;flex-direction:row-reverse;background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));padding:6px;border-radius:999px;box-shadow:var(--shadow)}
+  .card .admin-actions .small{box-shadow:none}
+  /* add a subtle touch target area */
+  .card{padding-bottom:18px}
+}
+
+/* Desktop: admin buttons appear inline but subtle */
+@media (min-width:601px){
+  .card .admin-actions{position:static;padding:0;background:transparent}
+}
+
+/* Make product section headings stand out */
+#products-grid > div > h3{margin:12px 0 6px 0;font-size:18px}
 </style>
 </head>
 <body>
@@ -114,7 +137,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   <div id="admin-content">
     <h4>Produits</h4>
     <input id="name-input" placeholder="Nom du produit">
-    <input id="price-input" placeholder="Prix (Fcfa)">
+    <input id="price-input" placeholder="Prix (Fcfa)" inputmode="numeric">
     <textarea id="desc-input" placeholder="Description" rows="2"></textarea>
     <select id="section-select"></select>
     <div class="thumb-preview" id="preview"></div>
@@ -144,167 +167,461 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 </footer>
 
 <script>
-// --- Config ---
+/* ----------------------------
+   CONFIG & UTILITAIRES
+   ---------------------------- */
 const CONFIG={whatsapp:'+237694484568', defaultPassword:'Laure1975', shopName:"Laura Shop's"};
-const $=s=>document.querySelector(s), qs=s=>Array.from(document.querySelectorAll(s)), uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-const STORAGE_KEY='shop_products', SECTION_KEY='shop_sections';
+const $=s=>document.querySelector(s), qs=s=>Array.from(document.querySelectorAll(s));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const LOCAL_PRODUCTS_KEY='shop_products', LOCAL_SECTIONS_KEY='shop_sections';
 let LANG='fr';
 const TEXT={fr:{order:'Commander sur WhatsApp',admin:'Espace administrateur'},en:{order:'Order on WhatsApp',admin:'Admin Area'}};
 const t=k=>TEXT[LANG][k]||k;
+const normalizeString=str=>String(str||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
-// --- Storage ---
-function loadProducts(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[]}catch{return[]}}
-function saveProducts(l){localStorage.setItem(STORAGE_KEY,JSON.stringify(l))}
-function loadSections(){try{return JSON.parse(localStorage.getItem(SECTION_KEY))||[]}catch{return[]}}
-function saveSections(l){localStorage.setItem(SECTION_KEY,JSON.stringify(l))}
-function normalizeString(str){return str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() }
+/* ----------------------------
+   IndexedDB: simple helper
+   ---------------------------- */
+const DB_NAME = "LauraShopDB";
+const DB_VERSION = 1;
+const STORE_PRODUCTS = "products";
+const STORE_SECTIONS = "sections";
 
-// --- Admin ---
+function openDb(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(STORE_PRODUCTS)){
+        db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
+      }
+      if(!db.objectStoreNames.contains(STORE_SECTIONS)){
+        db.createObjectStore(STORE_SECTIONS, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbGetAll(storeName){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readonly');
+    const store = tx.objectStore(storeName);
+    const req = store.getAll();
+    req.onsuccess = ()=>resolve(req.result || []);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbGet(storeName, key){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readonly');
+    const store = tx.objectStore(storeName);
+    const req = store.get(key);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbAdd(storeName, obj){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    const req = store.add(obj);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbPut(storeName, obj){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    const req = store.put(obj);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbDelete(storeName, key){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    const req = store.delete(key);
+    req.onsuccess = ()=>resolve();
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+/* ----------------------------
+   Migration: localStorage -> IndexedDB
+   ---------------------------- */
+async function migrateLocalStorageToIDB(){
+  try{
+    const localProducts = JSON.parse(localStorage.getItem(LOCAL_PRODUCTS_KEY) || 'null');
+    const localSections = JSON.parse(localStorage.getItem(LOCAL_SECTIONS_KEY) || 'null');
+
+    // If IndexedDB already has data, avoid duplicate migration.
+    const existingProducts = await idbGetAll(STORE_PRODUCTS);
+    const existingSections = await idbGetAll(STORE_SECTIONS);
+
+    // If there is nothing in IndexedDB but there is in localStorage -> migrate
+    if((Array.isArray(localProducts) && localProducts.length) && (!existingProducts || existingProducts.length===0)){
+      for(const p of localProducts){
+        // Ensure id exists
+        const obj = {...p, id: p.id || uid()};
+        try{ await idbAdd(STORE_PRODUCTS, obj); }catch(e){ await idbPut(STORE_PRODUCTS, obj); }
+      }
+      console.log('Migrated products from localStorage → IndexedDB');
+    }
+
+    if((Array.isArray(localSections) && localSections.length) && (!existingSections || existingSections.length===0)){
+      for(const s of localSections){
+        const obj = {...s, id: s.id || uid()};
+        try{ await idbAdd(STORE_SECTIONS, obj); }catch(e){ await idbPut(STORE_SECTIONS, obj); }
+      }
+      console.log('Migrated sections from localStorage → IndexedDB');
+    }
+
+    // If migration succeeded (or at least localStorage existed), clear localStorage keys to avoid future confusion
+    if(localProducts || localSections){
+      try{
+        localStorage.removeItem(LOCAL_PRODUCTS_KEY);
+        localStorage.removeItem(LOCAL_SECTIONS_KEY);
+        console.log('Cleared old localStorage keys after migration.');
+      }catch(e){
+        console.warn('Could not clear localStorage keys:', e);
+      }
+    }
+  }catch(e){
+    console.warn('Migration error:', e);
+  }
+}
+
+/* ----------------------------
+   Data API (using IndexedDB)
+   ---------------------------- */
+async function loadProducts(){ return await idbGetAll(STORE_PRODUCTS) || []; }
+async function saveProduct(obj){ return await idbPut(STORE_PRODUCTS, obj); }
+async function addProduct(obj){ return await idbAdd(STORE_PRODUCTS, obj); }
+async function deleteProductById(id){ return await idbDelete(STORE_PRODUCTS, id); }
+
+async function loadSections(){ return await idbGetAll(STORE_SECTIONS) || []; }
+async function saveSection(obj){ return await idbPut(STORE_SECTIONS, obj); }
+async function addSection(obj){ return await idbAdd(STORE_SECTIONS, obj); }
+async function deleteSectionById(id){ return await idbDelete(STORE_SECTIONS, id); }
+
+/* ----------------------------
+   Admin state & helpers
+   ---------------------------- */
 function isAdmin(){return sessionStorage.getItem('admin')==='1'}
-function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0');updateAdminUI();}
-function updateAdminUI(){
-  const panel=$('#admin-panel');
-  if(isAdmin()){panel.classList.add('show');$('#admin-btn').style.display='none';}
-  else{panel.classList.remove('show');$('#admin-btn').style.display='inline-block';}
-  renderSections(); renderSectionFilter(); renderProducts();
-}
+function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
 
-// --- Sections ---
+/* ----------------------------
+   Rendering & business logic
+   ---------------------------- */
+let editingId=null;
 let editingSectionId=null;
-function addOrUpdateSection(){
-  const name=$('#section-input').value.trim(); if(!name)return alert('Nom de section requis');
-  let sections=loadSections();
-  if(editingSectionId){const i=sections.findIndex(s=>s.id===editingSectionId);if(i!==-1)sections[i].name=name;}
-  else sections.push({id:uid(),name});
-  saveSections(sections); clearSectionForm(); renderSections(); renderSectionFilter(); renderProducts();
-}
-function clearSectionForm(){editingSectionId=null;$('#section-input').value='';}
-function startEditSection(id){const s=loadSections().find(s=>s.id===id);if(!s)return;editingSectionId=id;$('#section-input').value=s.name;}
-function deleteSection(id){if(!confirm('Supprimer cette section et tous ses articles ?'))return;
-  saveSections(loadSections().filter(s=>s.id!==id));
-  saveProducts(loadProducts().filter(p=>p.sectionId!==id));
-  renderSections(); renderSectionFilter(); renderProducts();
-}
-function renderSections(){ const list=$('#sections-list'); list.innerHTML='';
-  loadSections().forEach(s=>{
-    const li=document.createElement('li');
+
+async function renderSections(){
+  const list = $('#sections-list');
+  list.innerHTML = '';
+  const sections = await loadSections();
+  sections.forEach(s=>{
+    const li = document.createElement('li');
     li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center'; li.style.marginBottom='4px';
-    li.innerHTML=`<span>${s.name}</span><span><button class="small btn secondary edit-section" data-id="${s.id}">Edit</button><button class="small btn secondary del-section" data-id="${s.id}">Suppr</button></span>`;
+    li.innerHTML = `<span>${s.name}</span>
+                    <span>
+                      <button class="small btn secondary edit-section" data-id="${s.id}">Edit</button>
+                      <button class="small btn secondary del-section" data-id="${s.id}">Suppr</button>
+                    </span>`;
     list.appendChild(li);
   });
   qs('.edit-section').forEach(b=>b.onclick=()=>startEditSection(b.dataset.id));
-  qs('.del-section').forEach(b=>b.onclick=()=>deleteSection(b.dataset.id));
+  qs('.del-section').forEach(b=>b.onclick=()=>handleDeleteSection(b.dataset.id));
   updateSectionSelect();
+  renderSectionFilter();
 }
-function updateSectionSelect(){const sel=$('#section-select'); sel.innerHTML=''; loadSections().forEach(s=>{ const opt=document.createElement('option'); opt.value=s.id; opt.textContent=s.name; sel.appendChild(opt); });}
-function renderSectionFilter(){const sel=$('#section-filter'); sel.innerHTML='<option value="">Toutes les sections</option>'; loadSections().forEach(s=>{ const opt=document.createElement('option'); opt.value=s.id; opt.textContent=s.name; sel.appendChild(opt); });}
 
-// --- Products ---
-let editingId=null;
+async function updateSectionSelect(){
+  const sel = $('#section-select');
+  sel.innerHTML = '';
+  const sections = await loadSections();
+  sections.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+}
+
+async function renderSectionFilter(){
+  const sel = $('#section-filter');
+  sel.innerHTML = '<option value="">Toutes les sections</option>';
+  const sections = await loadSections();
+  sections.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+}
+
+/* Sections management */
+function clearSectionForm(){ editingSectionId=null; $('#section-input').value=''; }
+async function addOrUpdateSection(){
+  const name = $('#section-input').value.trim();
+  if(!name) return alert('Nom de section requis');
+  if(editingSectionId){
+    const s = await idbGet(STORE_SECTIONS, editingSectionId);
+    if(s){ s.name = name; await saveSection(s); }
+  } else {
+    await addSection({ id: uid(), name });
+  }
+  clearSectionForm();
+  await renderSections();
+  await renderProducts();
+}
+async function startEditSection(id){
+  const s = await idbGet(STORE_SECTIONS, id);
+  if(!s) return;
+  editingSectionId = id;
+  $('#section-input').value = s.name;
+}
+async function handleDeleteSection(id){
+  if(!confirm('Supprimer cette section et tous ses articles ?')) return;
+  // delete section and associated products
+  await deleteSectionById(id);
+  const products = await loadProducts();
+  for(const p of products){
+    if(p.sectionId === id) await deleteProductById(p.id);
+  }
+  await renderSections();
+  await renderProducts();
+}
+
+/* Products */
+function clearForm(){ editingId=null; $('#name-input').value=''; $('#price-input').value=''; $('#desc-input').value=''; $('#file').value=''; $('#preview').innerHTML=''; $('#section-select').value=''; }
 async function addOrUpdate(){
-  const n=$('#name-input').value.trim(); const pr=parseFloat($('#price-input').value)||0; const d=$('#desc-input').value.trim();
-  const secId=$('#section-select').value;
-  if(!n)return alert('Nom requis'); if(!secId)return alert('Section requise');
-  let img=null; const f=$('#file').files[0];
-  if(f) img=await new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result); rd.readAsDataURL(f)});
-  else if($('#preview img')) img=$('#preview img').src;
-  let products=loadProducts();
-  if(editingId){ const i=products.findIndex(x=>x.id===editingId); if(i!==-1) products[i]={...products[i],name:n,price:pr,description:d,image:img,sectionId:secId};}
-  else products.unshift({id:uid(),name:n,price:pr,description:d,image:img,sectionId:secId});
-  saveProducts(products); clearForm(); renderProducts();
-}
-function startEdit(id){const p=loadProducts().find(x=>x.id===id); if(!p)return; editingId=id; $('#name-input').value=p.name; $('#price-input').value=p.price; $('#desc-input').value=p.description; $('#section-select').value=p.sectionId; $('#preview').innerHTML=p.image?`<img src='${p.image}'>`:'';}
-function deleteProduct(id){if(!confirm('Supprimer cet article ?'))return; saveProducts(loadProducts().filter(x=>x.id!==id)); renderProducts();}
-function clearForm(){editingId=null;$('#name-input').value='';$('#price-input').value='';$('#desc-input').value='';$('#file').value='';$('#preview').innerHTML=''; $('#section-select').value='';}
+  const n = $('#name-input').value.trim();
+  const pr = parseFloat($('#price-input').value) || 0;
+  const d = $('#desc-input').value.trim();
+  const secId = $('#section-select').value;
+  if(!n) return alert('Nom requis');
+  if(!secId) return alert('Section requise');
 
-// --- WhatsApp ---
+  let img = null;
+  const f = $('#file').files[0];
+  if(f){
+    img = await new Promise(r=>{
+      const rd = new FileReader();
+      rd.onload = ()=>r(rd.result);
+      rd.readAsDataURL(f);
+    });
+  } else {
+    const existingImg = $('#preview img');
+    if(existingImg) img = existingImg.src;
+  }
+
+  if(editingId){
+    const prod = await idbGet(STORE_PRODUCTS, editingId);
+    if(prod){
+      const updated = {...prod, name:n, price:pr, description:d, image:img, sectionId:secId};
+      await saveProduct(updated);
+    }
+  } else {
+    const obj = { id: uid(), name:n, price:pr, description:d, image:img, sectionId:secId };
+    await addProduct(obj);
+  }
+  clearForm();
+  await renderProducts();
+}
+
+async function startEdit(id){
+  const p = await idbGet(STORE_PRODUCTS, id);
+  if(!p) return;
+  editingId = id;
+  $('#name-input').value = p.name || '';
+  $('#price-input').value = p.price || '';
+  $('#desc-input').value = p.description || '';
+  $('#section-select').value = p.sectionId || '';
+  $('#preview').innerHTML = p.image ? `<img src='${p.image}'>` : '';
+  // scroll admin panel into view if on mobile
+  if(window.innerWidth <= 600) $('#admin-panel').scrollIntoView({behavior:'smooth'});
+}
+
+async function handleDeleteProduct(id){
+  if(!confirm('Supprimer cet article ?')) return;
+  await deleteProductById(id);
+  await renderProducts();
+}
+
+/* WhatsApp helper */
 function whatsappUrl(p){
   const base='https://wa.me/'+CONFIG.whatsapp.replace(/\D/g,'');
-  const productUrl=`${window.location.origin}${window.location.pathname}#product-${p.name.toLowerCase().replace(/\s+/g,'-')}`;
+  const productUrl=`${window.location.origin}${window.location.pathname}#product-${encodeURIComponent(p.name.toLowerCase().replace(/\s+/g,'-'))}`;
   const msg=LANG==='fr'
     ?`Bonjour Mme Laure, je souhaite commander ${p.name} au prix de ${p.price.toLocaleString()} Fcfa.\nVoir le produit ici : ${productUrl}`
     :`Hello, I want to order ${p.name} for ${p.price.toLocaleString()} Fcfa.\nSee the product here: ${productUrl}`;
   return base+'?text='+encodeURIComponent(msg);
 }
 
-// --- Render Products ---
-function renderProducts(){
-  const grid=$('#products-grid'); grid.innerHTML='';
-  let products=loadProducts();
-  const sections=loadSections();
-  const q=normalizeString($('#search').value.trim());
-  const sectionFilter=$('#section-filter').value;
-  const sortVal=$('#sort').value;
-  if(sortVal==='price-asc') products.sort((a,b)=>a.price-b.price);
-  else if(sortVal==='price-desc') products.sort((a,b)=>b.price-a.price);
+/* Render products grouped by section */
+async function renderProducts(){
+  const grid = $('#products-grid');
+  grid.innerHTML = '';
+  let products = await loadProducts();
+  const sections = await loadSections();
+  const q = normalizeString($('#search').value.trim());
+  const sectionFilter = $('#section-filter').value;
+  const sortVal = $('#sort').value;
 
-  sections.forEach(section=>{
-    let sectProducts=products.filter(p=>p.sectionId===section.id && normalizeString(p.name+p.description).includes(q));
-    if(sectionFilter && section.id!==sectionFilter)return;
-    if(sectProducts.length===0)return;
-    const secDiv=document.createElement('div'); secDiv.innerHTML=`<h3>${section.name}</h3>`;
-    const sectGrid=document.createElement('div'); sectGrid.className='grid';
-    sectProducts.forEach(x=>{
-      const c=document.createElement('article'); c.className='card';
-      c.innerHTML=`<div class='thumb' data-img='${x.image}'>${x.image?`<img src='${x.image}'>`:'<div class="muted">Aucune image</div>'}</div>
+  if(sortVal === 'price-asc') products.sort((a,b)=>a.price - b.price);
+  else if(sortVal === 'price-desc') products.sort((a,b)=>b.price - a.price);
+
+  // render per section
+  for(const section of sections){
+    if(sectionFilter && section.id !== sectionFilter) continue;
+    let sectProducts = products.filter(p => p.sectionId === section.id && normalizeString(p.name + ' ' + p.description).includes(q));
+    if(sectProducts.length === 0) continue;
+
+    const secDiv = document.createElement('div');
+    secDiv.innerHTML = `<h3>${section.name}</h3>`;
+    const sectGrid = document.createElement('div'); sectGrid.className = 'grid';
+
+    for(const x of sectProducts){
+      const c = document.createElement('article'); c.className = 'card';
+      c.innerHTML = `<div class='thumb' data-img='${x.image || ''}'>${x.image ? `<img src='${x.image}'>` : '<div class="muted">Aucune image</div>'}</div>
       <div class='card-body'>
         <div class='name'>${x.name}</div>
-        <div class='desc'>${x.description}</div>
+        <div class='desc'>${x.description || ''}</div>
         <div style='display:flex;justify-content:space-between;align-items:center'>
-          <div class='price'>${x.price.toLocaleString()} Fcfa</div>
+          <div class='price'>${(x.price || 0).toLocaleString()} Fcfa</div>
           <div class='card-actions'>
             <a class='small btn' href='${whatsappUrl(x)}' target='_blank'>${t('order')}</a>
-            ${isAdmin()?`<button class='small btn secondary edit' data-id='${x.id}'>Edit</button><button class='small btn secondary del' data-id='${x.id}'>Suppr</button>`:''}
+            ${isAdmin() ? `<div class="admin-actions">
+              <button class="small btn secondary edit" data-id="${x.id}">Edit</button>
+              <button class="small btn secondary del" data-id="${x.id}">Suppr</button>
+            </div>` : ''}
           </div>
         </div>
       </div>`;
       sectGrid.appendChild(c);
-    });
-    secDiv.appendChild(sectGrid); grid.appendChild(secDiv);
-  });
+    }
 
-  // Image zoom
+    secDiv.appendChild(sectGrid);
+    grid.appendChild(secDiv);
+  }
+
+  // Image zoom (delegate)
   qs('.thumb').forEach(t=>t.onclick=()=>{
-    const src=t.querySelector('img')?.src; if(src){$('#img-modal img').src=src; $('#img-modal').style.display='flex';}
+    const src = t.querySelector('img')?.src;
+    if(src){ $('#img-modal img').src = src; $('#img-modal').style.display = 'flex'; }
   });
-  $('#close-modal').onclick=()=>$('#img-modal').style.display='none';
-  // Admin buttons
+  $('#close-modal').onclick = ()=>$('#img-modal').style.display = 'none';
+
+  // admin buttons
   qs('.edit').forEach(b=>b.onclick=()=>startEdit(b.dataset.id));
-  qs('.del').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.id));
+  qs('.del').forEach(b=>b.onclick=()=>handleDeleteProduct(b.dataset.id));
 }
 
-// --- Events ---
-document.addEventListener('DOMContentLoaded',()=>{
-  $('#year').textContent=new Date().getFullYear();
-  $('#admin-btn').onclick=()=>{const pw=prompt("Réservé à l'administrateur"); if(pw===CONFIG.defaultPassword)setAdmin(true); else alert('Mot de passe incorrect');};
-  $('#logout').onclick=()=>setAdmin(false);
-  $('#add-btn').onclick=addOrUpdate;
-  $('#cancel-edit').onclick=clearForm;
-  $('#add-section-btn').onclick=addOrUpdateSection;
-  $('#clear-section-btn').onclick=clearSectionForm;
-  $('#search').oninput=renderProducts;
-  $('#sort').onchange=renderProducts;
-  $('#section-filter').onchange=renderProducts;
+/* ----------------------------
+   Admin UI update & events
+   ---------------------------- */
+function updateAdminUI(){
+  const panel = $('#admin-panel');
+  if(isAdmin()){
+    panel.classList.add('show');
+    $('#admin-btn').style.display='none';
+  } else {
+    panel.classList.remove('show');
+    $('#admin-btn').style.display='inline-block';
+  }
+  // re-render controls that depend on admin
+  renderSections();
+  renderProducts();
+  updateSectionSelect();
+  renderSectionFilter();
+}
+
+/* ----------------------------
+   Event bindings & init
+   ---------------------------- */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  $('#year').textContent = new Date().getFullYear();
+  // open DB to ensure it's available and migrate
+  try{
+    await openDb();
+    await migrateLocalStorageToIDB();
+  }catch(e){
+    console.warn('IndexedDB not available or failed to open:', e);
+  }
+
+  // initial UI populate
+  await renderSections();
+  await renderProducts();
+  updateAdminUI();
+
+  // Admin login
+  $('#admin-btn').onclick = ()=>{
+    const pw = prompt("Réservé à l'administrateur");
+    if(pw === CONFIG.defaultPassword) setAdmin(true);
+    else alert('Mot de passe incorrect');
+  };
+  $('#logout').onclick = ()=>{ setAdmin(false); };
+
+  // Buttons
+  $('#add-btn').onclick = addOrUpdate;
+  $('#cancel-edit').onclick = clearForm;
+  $('#add-section-btn').onclick = addOrUpdateSection;
+  $('#clear-section-btn').onclick = clearSectionForm;
+  $('#search').oninput = renderProducts;
+  $('#sort').onchange = renderProducts;
+  $('#section-filter').onchange = renderProducts;
 
   // Admin panel toggle
-  let minimized=false;
-  $('#admin-toggle').onclick=()=>{
-    const content=$('#admin-content');
-    minimized=!minimized;
-    content.style.display=minimized?'none':'block';
-    $('#admin-toggle').textContent=minimized?'+':'–';
+  let minimized = false;
+  $('#admin-toggle').onclick = ()=>{
+    const content = $('#admin-content');
+    minimized = !minimized;
+    content.style.display = minimized ? 'none' : 'block';
+    $('#admin-toggle').textContent = minimized ? '+' : '–';
   };
 
   // File preview
-  $('#file').onchange=e=>{
-    const f=e.target.files[0]; if(!f)return;
-    const reader=new FileReader();
-    reader.onload=()=>$('#preview').innerHTML=`<img src='${reader.result}'>`;
+  $('#file').onchange = e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>$('#preview').innerHTML = `<img src='${reader.result}'>`;
     reader.readAsDataURL(f);
   };
 
-  renderProducts(); updateAdminUI();
+  // Language toggle
+  $('#lang-fr').onclick = ()=>{ LANG='fr'; renderProducts(); };
+  $('#lang-en').onclick = ()=>{ LANG='en'; renderProducts(); };
+
+  // Ensure admin UI visible if session already admin
+  if(isAdmin()) updateAdminUI();
 });
+
+/* ----------------------------
+   Small utility: get a single record (used earlier)
+   ---------------------------- */
+async function idbGet(storeName, key){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readonly');
+    const store = tx.objectStore(storeName);
+    const req = store.get(key);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
 </script>
 </body>
 </html>
+

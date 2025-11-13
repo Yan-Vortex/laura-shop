@@ -51,8 +51,8 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 @media (max-width:600px){.thumb{height:140px}.grid{grid-template-columns:repeat(2,1fr);}}
 
 /* Layout breakpoints */
-@media (min-width:601px) and (max-width:900px){.grid{grid-template-columns:repeat(3,1fr);}}
-@media (min-width:901px){.grid{grid-template-columns:repeat(4,1fr);}}
+@media (min-width:601px) and (max-width:900px){.grid{grid-template-columns:repeat(3,1fr);} }
+@media (min-width:901px){.grid{grid-template-columns:repeat(4,1fr);} }
 
 .lang-toggle{display:flex;gap:6px}
 .chip{background:var(--glass);padding:6px 10px;border-radius:999px;border:1px solid rgba(0,0,0,0.04);cursor:pointer}
@@ -84,8 +84,33 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   .card .admin-actions{position:static;padding:0;background:transparent}
 }
 
-/* Make product section headings stand out */
-#products-grid > div > h3{margin:12px 0 6px 0;font-size:18px}
+/* --- Product Section Headings Enhanced --- */
+#products-grid > div > h3{
+  margin:16px 0 12px 0;
+  font-size:20px;
+  font-weight:700;
+  color:var(--accent);
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom:6px;
+  position:relative;
+}
+#products-grid > div > h3::after{
+  content:'';
+  position:absolute;
+  left:0; bottom:-2px;
+  width:50px;
+  height:4px;
+  background:var(--accent);
+  border-radius:2px;
+}
+
+/* Optional: subtle section background for separation */
+#products-grid > div{
+  margin-bottom:28px;
+  padding-bottom:12px;
+  border-bottom:1px solid #eaeaea;
+}
 </style>
 </head>
 <body>
@@ -624,4 +649,3 @@ async function idbGet(storeName, key){
 </script>
 </body>
 </html>
-

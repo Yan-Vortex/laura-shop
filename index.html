@@ -598,9 +598,16 @@ async function renderProducts() {
     const sortVal = $('#sort').value;
 
     // Trier les produits
+    // Trier les produits - LES PLUS RÉCENTS EN PREMIER
     let sortedProducts = [...products];
-    if (sortVal === 'price-asc') sortedProducts.sort((a, b) => a.price - b.price);
-    else if (sortVal === 'price-desc') sortedProducts.sort((a, b) => b.price - a.price);
+    if (sortVal === 'price-asc') {
+      sortedProducts.sort((a, b) => a.price - b.price);
+    } else if (sortVal === 'price-desc') {
+      sortedProducts.sort((a, b) => b.price - a.price);
+    } else {
+      // Tri par défaut : ID décroissant (les plus récents en premier)
+      sortedProducts.sort((a, b) => b.id - a.id);
+    }
 
     // IDs des sections correspondant à la recherche
     const matchedSectionIds = new Set();
@@ -789,4 +796,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
+
 

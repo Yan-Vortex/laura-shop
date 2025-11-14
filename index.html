@@ -349,33 +349,48 @@ $('#file').onchange = e=>{
 async function renderProducts(){
   const sections = await loadSections();
   const products = await loadProducts();
-  const grid = $('#products-grid'); grid.innerHTML='';
+  const grid = $('#products-grid'); 
+  grid.innerHTML='';
 
   sections.forEach(sec=>{
     const secDiv = document.createElement('div');
     secDiv.innerHTML = `<h3>${sec.name}</h3>`;
-    const cards = document.createElement('div'); cards.className='grid';
+
+    const cards = document.createElement('div'); 
+    cards.className='grid';
+
     const secProducts = products.filter(p=>p.sectionId===sec.id);
+
     secProducts.forEach(p=>{
-      const card = document.createElement('div'); card.className='card';
-      const imgSrc = x.image ? x.image : null;
-      c.innerHTML = `<div class='thumb'>${imgSrc ? `<img src='${imgSrc}'>` : '<div class="muted">Aucune image</div>'}</div>
-      <div class='card-body'>
-        <div class='name'>${x.name}</div>
-        <div class='desc'>${x.description || ''}</div>
-        <div style='display:flex;justify-content:space-between;align-items:center'>
-          <div class='price'>${(x.price || 0).toLocaleString()} Fcfa</div>
-          ${isAdmin()?`<div class="card-actions admin-actions">
-            <button class="small btn" onclick="startEdit('${p.id}')">Edit</button>
-            <button class="small btn secondary" onclick="handleDelete('${p.id}')">Suppr</button>
-          </div>`:''}
-        </div>`;
+      const card = document.createElement('div'); 
+      card.className='card';
+      const imgSrc = p.image ? p.image : null;
+
+      card.innerHTML = `
+        <div class='thumb'>
+          ${imgSrc ? `<img src='${imgSrc}'>` : '<div class="muted">Aucune image</div>'}
+        </div>
+        <div class='card-body'>
+          <div class='name'>${p.name}</div>
+          <div class='desc'>${p.description || ''}</div>
+          <div style='display:flex;justify-content:space-between;align-items:center'>
+            <div class='price'>${(p.price || 0).toLocaleString()} Fcfa</div>
+            ${isAdmin() ? `
+            <div class="card-actions admin-actions">
+              <button class="small btn" onclick="startEdit('${p.id}')">Edit</button>
+              <button class="small btn secondary" onclick="handleDelete('${p.id}')">Suppr</button>
+            </div>` : ''}
+          </div>
+        </div>
+      `;
       cards.appendChild(card);
     });
+
     secDiv.appendChild(cards);
     grid.appendChild(secDiv);
   });
 }
+
 
 // Admin toggle
 $('#admin-btn').onclick = ()=>{
@@ -411,5 +426,6 @@ function buildSectionNav(sections){
 </script>
 </body>
 </html>
+
 
 

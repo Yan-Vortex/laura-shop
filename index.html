@@ -114,7 +114,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
     <div class="logo">LS</div>
     <div>
       <div class="title" id="shop-name">Laura Shop's</div>
-      <div class="muted" id="shop-sub">Marketplace</div>
+      <div class="muted" id="shop-sub">Revendeur — produits sélectionnés</div>
     </div>
   </div>
   <nav>
@@ -190,8 +190,8 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 <script>
 // Configuration
 const CONFIG = {
-  whatsapp: '+237694484568', 
-  defaultPassword: 'Laure1975', 
+  whatsapp: '+237694484568',
+  defaultPassword: 'Laure1975',
   shopName: "Laura Shop's"
 };
 
@@ -232,10 +232,10 @@ async function apiGet(url) {
 
 async function apiPost(url, body) {
   try {
-    const r = await fetch(url, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(body) 
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
     if (!r.ok) throw new Error('post failed');
     return await r.json();
@@ -247,10 +247,10 @@ async function apiPost(url, body) {
 
 async function apiPut(url, body) {
   try {
-    const r = await fetch(url, { 
-      method: 'PUT', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(body) 
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
     if (!r.ok) throw new Error('put failed');
     return await r.json();
@@ -272,73 +272,47 @@ async function apiDelete(url) {
 }
 
 // Fonctions pour les sections
-async function loadSections() { 
-  return await apiGet(API.sections); 
+async function loadSections() {
+  return await apiGet(API.sections);
 }
 
-async function addSection(section) { 
-  return await apiPost(API.sections, section); 
+async function addSection(section) {
+  return await apiPost(API.sections, section);
 }
 
-async function saveSection(section) { 
-  return await apiPut(`${API.sections}/${section.id}`, section); 
+async function saveSection(section) {
+  return await apiPut(`${API.sections}/${section.id}`, section);
 }
 
-async function deleteSectionById(id) { 
-  return await apiDelete(`${API.sections}/${id}`); 
+async function deleteSectionById(id) {
+  return await apiDelete(`${API.sections}/${id}`);
 }
 
 // Fonctions pour les produits
-async function loadProducts() { 
-  return await apiGet(API.products); 
+async function loadProducts() {
+  return await apiGet(API.products);
 }
 
-async function addProduct(product) { 
-  return await apiPost(API.products, product); 
+async function addProduct(product) {
+  return await apiPost(API.products, product);
 }
 
-async function saveProduct(product) { 
-  return await apiPut(`${API.products}/${product.id}`, product); 
+async function saveProduct(product) {
+  return await apiPut(`${API.products}/${product.id}`, product);
 }
 
-async function deleteProductById(id) { 
-  return await apiDelete(`${API.products}/${id}`); 
+async function deleteProductById(id) {
+  return await apiDelete(`${API.products}/${id}`);
 }
 
 // Gestion de l'admin
-function isAdmin(){return sessionStorage.getItem('admin')==='1'}
+function isAdmin() {
+  return sessionStorage.getItem('admin') === '1';
+}
 
-function setAdmin(v) { 
-  sessionStorage.setItem('admin', v ? '1' : '0'); 
+function setAdmin(v) {
+  sessionStorage.setItem('admin', v ? '1' : '0');
   updateAdminUI();
-}
-
-function showAdminButtons() {
-  qs('.admin-actions').forEach(btn => btn.style.display = 'flex');
-  setTimeout(() => {
-    renderProducts();
-  }, 0);
-}
-
-function hideAdminButtons() {
-  qs('.admin-actions').forEach(btn => btn.style.display = 'none');
-}
-
-function updateAdminUI(){
-  const panel = $('#admin-panel');
-  const adminBtn = $('#admin-btn');
-  
-  if (!panel || !adminBtn) return;
-  
-  if (isAdmin()){
-    panel.classList.add('show');
-    adminBtn.style.display = 'none';
-    showAdminButtons();
-  } else {
-    panel.classList.remove('show');
-    adminBtn.style.display = 'inline-block';
-    hideAdminButtons();
-  }
 }
 
 // Variables d'état
@@ -350,7 +324,7 @@ async function renderSections() {
   try {
     const list = $('#sections-list');
     if (!list) return;
-    
+
     list.innerHTML = '';
     const sections = await loadSections();
 
@@ -387,7 +361,7 @@ async function renderSections() {
 async function updateSectionSelects(sections) {
   const sel = $('#section-select');
   if (!sel) return;
-  
+
   sel.innerHTML = '<option value="">-- Choisir une section --</option>';
   sections.forEach(s => {
     const opt = document.createElement('option');
@@ -400,7 +374,7 @@ async function updateSectionSelects(sections) {
 async function renderSectionFilter() {
   const sel = $('#section-filter');
   if (!sel) return;
-  
+
   sel.innerHTML = '<option value="">Toutes les sections</option>';
   const sections = await loadSections();
   sections.forEach(s => {
@@ -412,22 +386,22 @@ async function renderSectionFilter() {
 }
 
 // Gestion des sections
-function clearSectionForm() { 
-  editingSectionId = null; 
-  $('#section-input').value = ''; 
+function clearSectionForm() {
+  editingSectionId = null;
+  $('#section-input').value = '';
 }
 
 async function addOrUpdateSection() {
   try {
     const name = $('#section-input').value.trim();
     if (!name) return alert('Nom de section requis');
-    
+
     if (editingSectionId) {
       await saveSection({ id: editingSectionId, name });
     } else {
       await addSection({ name });
     }
-    
+
     clearSectionForm();
     await renderSections();
     await renderProducts();
@@ -442,7 +416,7 @@ async function startEditSection(id) {
     const sections = await loadSections();
     const s = sections.find(x => x.id === id);
     if (!s) return;
-    
+
     editingSectionId = id;
     $('#section-input').value = s.name;
   } catch (error) {
@@ -452,10 +426,10 @@ async function startEditSection(id) {
 
 async function handleDeleteSection(id) {
   if (!confirm('Supprimer cette section et tous ses articles ?')) return;
-  
+
   try {
     await deleteSectionById(id);
-    
+
     // Supprimer les produits de cette section
     const products = await loadProducts();
     for (const p of products) {
@@ -463,7 +437,7 @@ async function handleDeleteSection(id) {
         await deleteProductById(p.id);
       }
     }
-    
+
     await renderSections();
     await renderProducts();
   } catch (error) {
@@ -489,7 +463,7 @@ async function addOrUpdate() {
     const pr = parseFloat($('#price-input').value) || 0;
     const d = $('#desc-input').value.trim();
     const secId = $('#section-select').value;
-    
+
     if (!n) return alert('Nom requis');
     if (!secId) return alert('Section requise');
 
@@ -511,7 +485,7 @@ async function addOrUpdate() {
         method: 'PUT',
         body: formData
       });
-      
+
       if (!response.ok) throw new Error('Erreur lors de la modification');
       result = await response.json();
     } else {
@@ -519,7 +493,7 @@ async function addOrUpdate() {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) throw new Error('Erreur lors de l\'ajout');
       result = await response.json();
     }
@@ -537,17 +511,17 @@ async function startEdit(id) {
     const products = await loadProducts();
     const p = products.find(x => x.id === id);
     if (!p) return;
-    
+
     editingId = id;
     $('#name-input').value = p.name || '';
     $('#price-input').value = p.price || '';
     $('#desc-input').value = p.description || '';
     $('#section-select').value = p.sectionId || '';
-    
+
     if (p.image) {
       $('#preview').innerHTML = `<img src="${API.base}${p.image}" style="max-width:100%;max-height:100%">`;
     }
-    
+
     if (window.innerWidth <= 600) {
       $('#admin-panel').scrollIntoView({ behavior: 'smooth' });
     }
@@ -558,7 +532,7 @@ async function startEdit(id) {
 
 async function handleDeleteProduct(id) {
   if (!confirm('Supprimer cet article ?')) return;
-  
+
   try {
     await deleteProductById(id);
     await renderProducts();
@@ -572,7 +546,7 @@ async function handleDeleteProduct(id) {
 function whatsappUrl(p) {
   const base = 'https://wa.me/' + CONFIG.whatsapp.replace(/\D/g, '');
   const productUrl = `${window.location.origin}${window.location.pathname}#product-${encodeURIComponent(p.name.toLowerCase().replace(/\s+/g, '-'))}`;
-  const msg = LANG === 'fr' 
+  const msg = LANG === 'fr'
     ? `Bonjour Mme Laure, je souhaite commander ${p.name} au prix de ${p.price.toLocaleString()} Fcfa.\nVoir le produit ici : ${productUrl}`
     : `Hello, I want to order ${p.name} for ${p.price.toLocaleString()} Fcfa.\nSee the product here: ${productUrl}`;
   return base + '?text=' + encodeURIComponent(msg);
@@ -582,9 +556,9 @@ function whatsappUrl(p) {
 function buildSectionNav(sections) {
   const nav = $('#section-nav');
   if (!nav) return;
-  
+
   nav.innerHTML = '';
-  
+
   const allBtn = document.createElement('button');
   allBtn.textContent = 'Toutes';
   allBtn.classList.add('active');
@@ -614,9 +588,9 @@ async function renderProducts() {
   try {
     const grid = $('#products-grid');
     if (!grid) return;
-    
+
     grid.innerHTML = '';
-    
+
     const products = await loadProducts();
     const sections = await loadSections();
     const q = normalizeString($('#search').value.trim());
@@ -639,9 +613,9 @@ async function renderProducts() {
     // Afficher par section
     for (const section of sections) {
       if (sectionFilter && section.id !== sectionFilter) continue;
-      
+
       let sectProducts = sortedProducts.filter(p => p.sectionId === section.id);
-      
+
       // Appliquer la recherche
       if (q) {
         sectProducts = sectProducts.filter(p => {
@@ -649,25 +623,25 @@ async function renderProducts() {
           return productText.includes(q) || matchedSectionIds.has(section.id);
         });
       }
-      
+
       if (sectProducts.length === 0) continue;
-      
+
       const secDiv = document.createElement('div');
       secDiv.setAttribute('data-section', section.id);
       secDiv.innerHTML = `<h3 id="section-${section.id}">${section.name}</h3>`;
-      
+
       const sectGrid = document.createElement('div');
       sectGrid.className = 'grid';
-      
+
       for (const product of sectProducts) {
         const card = document.createElement('article');
         card.className = 'card';
-        
+
         const imageSrc = product.image ? `${API.base}${product.image}` : '';
-        const imageHtml = product.image 
-          ? `<img src="${imageSrc}" alt="${product.name}">` 
+        const imageHtml = product.image
+          ? `<img src="${imageSrc}" alt="${product.name}">`
           : '<div class="muted">Aucune image</div>';
-        
+
         card.innerHTML = `
           <div class="thumb">${imageHtml}</div>
           <div class="card-body">
@@ -687,14 +661,14 @@ async function renderProducts() {
             </div>
           </div>
         `;
-        
+
         sectGrid.appendChild(card);
       }
-      
+
       secDiv.appendChild(sectGrid);
       grid.appendChild(secDiv);
     }
-    
+
     // Événements pour les images
     qs('.thumb').forEach(thumb => {
       thumb.onclick = () => {
@@ -705,12 +679,12 @@ async function renderProducts() {
         }
       };
     });
-    
+
     // Événements pour les boutons admin
     qs('.edit').forEach(btn => {
       btn.onclick = () => startEdit(btn.dataset.id);
     });
-    
+
     qs('.del').forEach(btn => {
       btn.onclick = () => handleDeleteProduct(btn.dataset.id);
     });
@@ -723,9 +697,9 @@ async function renderProducts() {
 function updateAdminUI() {
   const panel = $('#admin-panel');
   const adminBtn = $('#admin-btn');
-  
+
   if (!panel || !adminBtn) return;
-  
+
   if (isAdmin()) {
     panel.classList.add('show');
     adminBtn.style.display = 'none';
@@ -741,40 +715,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Année du footer
     const yearEl = $('#year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
-    
+
     // Initialisation de l'interface
     await renderSections();
     await renderProducts();
     updateAdminUI();
-    
+
     // Événements
     $('#admin-btn').onclick = () => {
-  const pw = prompt("Réservé à l'administrateur");
-  if (pw === CONFIG.defaultPassword) {
-    setAdmin(true);
-  } else {
-    alert('Mot de passe incorrect');
-  }
-};
+      const pw = prompt("Réservé à l'administrateur");
+      if (pw === CONFIG.defaultPassword) {
+        setAdmin(true)
+          location.reload;
+      } else {
+        alert('Mot de passe incorrect');
+      }
+    };
 
-// Déconnexion instantanée
-$('#logout').onclick = () => { 
+    $('#logout').onclick = () => { 
   setAdmin(false); 
-};
   // Rafraîchir la page après la déconnexion
   setTimeout(() => {
     location.reload();
-  }, 300);
+  }, 1);
 };
     $('#add-btn').onclick = addOrUpdate;
     $('#cancel-edit').onclick = clearForm;
     $('#add-section-btn').onclick = addOrUpdateSection;
     $('#clear-section-btn').onclick = clearSectionForm;
-    
+
     $('#search').oninput = renderProducts;
     $('#sort').onchange = renderProducts;
     $('#section-filter').onchange = renderProducts;
-    
+
     // Toggle du panel admin
     let minimized = false;
     $('#admin-toggle').onclick = () => {
@@ -783,28 +756,28 @@ $('#logout').onclick = () => {
       content.style.display = minimized ? 'none' : 'block';
       $('#admin-toggle').textContent = minimized ? '+' : '–';
     };
-    
+
     // Preview d'image
     $('#file').onchange = e => {
       const f = e.target.files[0];
       if (!f) return;
-      
+
       const reader = new FileReader();
       reader.onload = () => {
         $('#preview').innerHTML = `<img src="${reader.result}">`;
       };
       reader.readAsDataURL(f);
     };
-    
+
     // Changement de langue
     $('#lang-fr').onclick = () => { LANG = 'fr'; renderProducts(); };
     $('#lang-en').onclick = () => { LANG = 'en'; renderProducts(); };
-    
+
     // Modal d'image
     $('#close-modal').onclick = () => {
       $('#img-modal').style.display = 'none';
     };
-    
+
     // Vérifier si déjà admin
     if (isAdmin()) updateAdminUI();
   } catch (error) {
@@ -814,5 +787,3 @@ $('#logout').onclick = () => {
 </script>
 </body>
 </html>
-
-

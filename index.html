@@ -306,13 +306,39 @@ async function deleteProductById(id) {
 }
 
 // Gestion de l'admin
-function isAdmin() { 
-  return sessionStorage.getItem('admin') === '1'; 
-}
+function isAdmin(){return sessionStorage.getItem('admin')==='1'}
 
 function setAdmin(v) { 
   sessionStorage.setItem('admin', v ? '1' : '0'); 
-  updateAdminUI(); 
+  updateAdminUI();
+}
+
+function showAdminButtons() {
+  qs('.admin-actions').forEach(btn => btn.style.display = 'flex');
+  setTimeout(() => {
+    renderProducts();
+  }, 0);
+}
+
+function hideAdminButtons() {
+  qs('.admin-actions').forEach(btn => btn.style.display = 'none');
+}
+
+function updateAdminUI(){
+  const panel = $('#admin-panel');
+  const adminBtn = $('#admin-btn');
+  
+  if (!panel || !adminBtn) return;
+  
+  if (isAdmin()){
+    panel.classList.add('show');
+    adminBtn.style.display = 'none';
+    showAdminButtons();
+  } else {
+    panel.classList.remove('show');
+    adminBtn.style.display = 'inline-block';
+    hideAdminButtons();
+  }
 }
 
 // Variables d'état
@@ -723,16 +749,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Événements
     $('#admin-btn').onclick = () => {
-      const pw = prompt("Réservé à l'administrateur");
-      if (pw === CONFIG.defaultPassword) {
-        setAdmin(true);
-      } else {
-        alert('Mot de passe incorrect');
-      }
-    };
-    
-    $('#logout').onclick = () => { 
+  const pw = prompt("Réservé à l'administrateur");
+  if (pw === CONFIG.defaultPassword) {
+    setAdmin(true);
+  } else {
+    alert('Mot de passe incorrect');
+  }
+};
+
+// Déconnexion instantanée
+$('#logout').onclick = () => { 
   setAdmin(false); 
+};
   // Rafraîchir la page après la déconnexion
   setTimeout(() => {
     location.reload();
@@ -786,4 +814,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
+
 

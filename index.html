@@ -6,8 +6,13 @@
 <title>Laura Shop's — Catalogue</title>
 <style>
 :root{
-  --bg:#f6f7fb; --card:#ffffff; --accent:#8e44ad; --muted:#666;
-  --glass: rgba(255,255,255,0.6); --radius:12px; --shadow:0 6px 18px rgba(19,24,33,0.08);
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --accent:#8e44ad; /* violet */
+  --muted:#666;
+  --glass: rgba(255,255,255,0.6);
+  --radius:12px;
+  --shadow:0 6px 18px rgba(19,24,33,0.08);
 }
 *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
 body{margin:0;background:linear-gradient(180deg,#f7fbfb 0%,var(--bg) 100%);color:#111}
@@ -61,20 +66,25 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 
 #admin-resize{width:100%;height:8px;cursor:ns-resize;background:#eee;border-radius:4px;margin-bottom:8px;}
 
+/* --- Improved admin buttons for mobile --- */
 .admin-actions{display:flex;gap:6px;align-items:center}
 .admin-actions .small{padding:6px 8px;border-radius:10px;font-size:13px}
 
+/* On small screens make admin buttons larger and touch-friendly */
 @media (max-width:600px){
   .admin-actions .small{padding:10px 12px;font-size:15px;border-radius:12px}
   .card .admin-actions{position:absolute;right:10px;bottom:12px;flex-direction:row-reverse;background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));padding:6px;border-radius:999px;box-shadow:var(--shadow)}
   .card .admin-actions .small{box-shadow:none}
+  /* add a subtle touch target area */
   .card{padding-bottom:18px}
 }
 
+/* Desktop: admin buttons appear inline but subtle */
 @media (min-width:601px){
   .card .admin-actions{position:static;padding:0;background:transparent}
 }
 
+/* --- Product Section Headings Enhanced --- */
 #products-grid > div > h3{
   margin:16px 0 12px 0;
   font-size:20px;
@@ -95,12 +105,14 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   border-radius:2px;
 }
 
+/* Optional: subtle section background for separation */
 #products-grid > div{
   margin-bottom:28px;
   padding-bottom:12px;
   border-bottom:1px solid #eaeaea;
 }
 
+/* Section nav */
 #section-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 24px 0}
 #section-nav button{background:transparent;color:var(--accent);border:1px solid rgba(142,68,173,0.15);padding:8px 12px;border-radius:999px;cursor:pointer}
 #section-nav button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -125,7 +137,8 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 </header>
 
 <main class="container">
-  <div id="section-nav"></div>
+  <div id="section-nav"></div> <!-- Navigation entre sections -->
+
   <section class="controls">
     <input id="search" class="search" type="search" placeholder="Rechercher un produit ou une section...">
     <select id="sort">
@@ -152,6 +165,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
     <button id="admin-toggle">–</button>
   </h3>
   <div class="notice" id="admin-info">Connecté en tant qu'administrateur</div>
+
   <div id="admin-content">
     <h4>Produits</h4>
     <input id="name-input" placeholder="Nom du produit">
@@ -185,6 +199,9 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 </footer>
 
 <script>
+/* ----------------------------
+   CONFIG & UTILITAIRES
+   ---------------------------- */
 const CONFIG={whatsapp:'+237694484568', defaultPassword:'Laure1975', shopName:"Laura Shop's"};
 const API = {
   base: 'https://api-fugh.onrender.com',
@@ -198,17 +215,56 @@ const TEXT={fr:{order:'Commander sur WhatsApp',admin:'Espace administrateur'},en
 const t=k=>TEXT[LANG][k]||k;
 const normalizeString=str=>String(str||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
-async function apiGet(url){ const r=await fetch(url,{cache:'no-store'}); return r.ok?await r.json():[]; }
-async function apiPost(url, body){ const r=await fetch(url,{method:'POST',body:body instanceof FormData?body:JSON.stringify(body),headers:body instanceof FormData?{}:{'Content-Type':'application/json'}}); return r.ok?await r.json():null; }
-async function apiPut(url, body){ const r=await fetch(url,{method:'PUT',body:body instanceof FormData?body:JSON.stringify(body),headers:body instanceof FormData?{}:{'Content-Type':'application/json'}}); return r.ok?await r.json():null; }
-async function apiDelete(url){ const r=await fetch(url,{method:'DELETE'}); return r.ok; }
+/* ----------------------------
+   Server API wrapper
+   ---------------------------- */
+async function apiGet(url){
+  try{
+    const r = await fetch(url, {cache:'no-store'});
+    if(!r.ok) throw new Error('fetch failed');
+    return await r.json();
+  }catch(e){
+    console.error('API error:', e);
+    return [];
+  }
+}
 
-function isAdmin(){return sessionStorage.getItem('admin')==='1'}
-function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
+async function apiPost(url, body){
+  try{
+    const r = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('post failed');
+    return await r.json();
+  }catch(e){
+    console.error('API error:', e);
+    throw e;
+  }
+}
 
-let editingId=null;
-let editingSectionId=null;
+async function apiPut(url, body){
+  try{
+    const r = await fetch(url, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('put failed');
+    return await r.json();
+  }catch(e){
+    console.error('API error:', e);
+    throw e;
+  }
+}
 
+async function apiDelete(url){
+  try{
+    const r = await fetch(url, {method:'DELETE'});
+    if(!r.ok) throw new Error('delete failed');
+    return true;
+  }catch(e){
+    console.error('API error:', e);
+    return false;
+  }
+}
+
+/* ----------------------------
+   Data layer (server primary)
+   ---------------------------- */
 async function loadSections(){ return await apiGet(API.sections); }
 async function addSection(section){ return await apiPost(API.sections, section); }
 async function saveSection(section){ return await apiPut(`${API.sections}/${section.id}`, section); }
@@ -219,9 +275,29 @@ async function addProduct(product){ return await apiPost(API.products, product);
 async function saveProduct(product){ return await apiPut(`${API.products}/${product.id}`, product); }
 async function deleteProductById(id){ return await apiDelete(`${API.products}/${id}`); }
 
+/* ----------------------------
+   Admin state & helpers
+   ---------------------------- */
+function isAdmin(){return sessionStorage.getItem('admin')==='1'}
+function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
+
+/* ----------------------------
+   Rendering & business logic
+   ---------------------------- */
+let editingId=null;
+let editingSectionId=null;
+
 async function renderSections(){
-  const list = $('#sections-list'); list.innerHTML = '';
+  // builds:
+  // - sections list in admin
+  // - section select used for product form
+  // - section filter select
+  // - section nav (buttons)
+  const list = $('#sections-list');
+  list.innerHTML = '';
   const sections = await loadSections();
+
+  // ADMIN list
   sections.forEach(s=>{
     const li = document.createElement('li');
     li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center'; li.style.marginBottom='4px';
@@ -234,46 +310,75 @@ async function renderSections(){
   });
   qs('.edit-section').forEach(b=>b.onclick=()=>startEditSection(b.dataset.id));
   qs('.del-section').forEach(b=>b.onclick=()=>handleDeleteSection(b.dataset.id));
+
+  // SELECTS & NAV: rebuild fully (avoid duplicates)
   await updateSectionSelects(sections);
   buildSectionNav(sections);
-  renderSectionFilter();
+  renderSectionFilter(); // uses loadSections internally
 }
 
 async function updateSectionSelects(sections){
+  // section-select (admin product form)
   const sel = $('#section-select');
   sel.innerHTML = '<option value="">-- Choisir une section --</option>';
-  sections.forEach(s=>{ const opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.name; sel.appendChild(opt); });
+  sections.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
 }
 
 async function renderSectionFilter(){
   const sel = $('#section-filter');
   sel.innerHTML = '<option value="">Toutes les sections</option>';
   const sections = await loadSections();
-  sections.forEach(s=>{ const opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.name; sel.appendChild(opt); });
+  sections.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
 }
 
+/* Sections management */
 function clearSectionForm(){ editingSectionId=null; $('#section-input').value=''; }
 async function addOrUpdateSection(){
   const name = $('#section-input').value.trim();
   if(!name) return alert('Nom de section requis');
-  if(editingSectionId){ await saveSection({id:editingSectionId, name}); } 
-  else { await addSection({name}); }
-  clearSectionForm(); await renderSections(); await renderProducts();
+  if(editingSectionId){
+    try{
+      const s = { id: editingSectionId, name };
+      await saveSection(s);
+    }catch(e){ console.warn(e); alert('Erreur mise à jour section'); }
+  } else {
+    try{ await addSection({ name }); }catch(e){ console.warn(e); alert('Erreur création section'); }
+  }
+  clearSectionForm();
+  await renderSections();
+  await renderProducts();
 }
 async function startEditSection(id){
   const s = (await loadSections()).find(x=>x.id===id);
-  if(!s) return; editingSectionId = id; $('#section-input').value = s.name;
+  if(!s) return;
+  editingSectionId = id;
+  $('#section-input').value = s.name;
 }
 async function handleDeleteSection(id){
   if(!confirm('Supprimer cette section et tous ses articles ?')) return;
-  await deleteSectionById(id);
+  // delete section and associated products
+  try{ await deleteSectionById(id); }catch(e){ console.warn(e); }
+  // delete products belonging to this section
   const products = await loadProducts();
-  for(const p of products){ if(p.sectionId===id) await deleteProductById(p.id); }
-  await renderSections(); await renderProducts();
+  for(const p of products){
+    if(p.sectionId === id){
+      try{ await deleteProductById(p.id); }catch(e){ console.warn(e); }
+    }
+  }
+  await renderSections();
+  await renderProducts();
 }
 
+/* Products */
 function clearForm(){ editingId=null; $('#name-input').value=''; $('#price-input').value=''; $('#desc-input').value=''; $('#file').value=''; $('#preview').innerHTML=''; $('#section-select').value=''; }
-
 async function addOrUpdate(){
   const n = $('#name-input').value.trim();
   const pr = parseFloat($('#price-input').value) || 0;
@@ -281,13 +386,33 @@ async function addOrUpdate(){
   const secId = $('#section-select').value;
   if(!n) return alert('Nom requis');
   if(!secId) return alert('Section requise');
+
+  let img = null;
   const f = $('#file').files[0];
-  const formData = new FormData();
-  formData.append('name', n); formData.append('price', pr); formData.append('description', d); formData.append('sectionId', secId);
-  if(f) formData.append('image', f);
-  if(editingId){ await apiPut(`${API.products}/${editingId}`, formData); } 
-  else { await apiPost(API.products, formData); }
-  clearForm(); await renderProducts();
+  if(f){
+    img = await new Promise(r=>{
+      const rd = new FileReader();
+      rd.onload = ()=>r(rd.result);
+      rd.readAsDataURL(f);
+    });
+  } else {
+    const existingImg = $('#preview img');
+    if(existingImg) img = existingImg.src;
+  }
+
+  if(editingId){
+    try{
+      const prod = { id: editingId, name:n, price:pr, description:d, image:img, sectionId:secId };
+      await saveProduct(prod);
+    }catch(e){ console.warn(e); alert('Erreur mise à jour produit'); }
+  } else {
+    try{
+      const obj = { name:n, price:pr, description:d, image:img, sectionId:secId };
+      await addProduct(obj);
+    }catch(e){ console.warn(e); alert('Erreur ajout produit'); }
+  }
+  clearForm();
+  await renderProducts();
 }
 
 async function startEdit(id){
@@ -295,108 +420,207 @@ async function startEdit(id){
   if(!p) return;
   editingId = id;
   $('#name-input').value = p.name || '';
-  $('#price-input').value = p.price || 0;
+  $('#price-input').value = p.price || '';
   $('#desc-input').value = p.description || '';
   $('#section-select').value = p.sectionId || '';
-  if(p.image) $('#preview').innerHTML=`<img src="${p.image}" style="max-width:100%;max-height:100%">`;
+  $('#preview').innerHTML = p.image ? `<img src='${p.image}'>` : '';
+  if(window.innerWidth <= 600) $('#admin-panel').scrollIntoView({behavior:'smooth'});
 }
 
-async function handleDelete(id){
+async function handleDeleteProduct(id){
   if(!confirm('Supprimer cet article ?')) return;
-  await deleteProductById(id);
+  try{ await deleteProductById(id); }catch(e){ console.warn(e); }
   await renderProducts();
 }
 
-$('#file').onchange = e=>{
-  const f = e.target.files[0];
-  if(!f) { $('#preview').innerHTML=''; return; }
-  const reader = new FileReader();
-  reader.onload = ()=>$('#preview').innerHTML = `<img src='${reader.result}'>`;
-  reader.readAsDataURL(f);
-};
-
-async function renderProducts(){
-  const sections = await loadSections();
-  const products = await loadProducts();
-  const grid = $('#products-grid'); grid.innerHTML='';
-  const filterSec = $('#section-filter').value;
-  const searchVal = $('#search').value.trim().toLowerCase();
-
-  sections.forEach(sec=>{
-    const secDiv = document.createElement('div');
-    secDiv.innerHTML = `<h3>${sec.name}</h3>`;
-    const cards = document.createElement('div'); cards.className='grid';
-    const secProducts = products.filter(p=>p.sectionId===sec.id)
-                                .filter(p=>!filterSec || p.sectionId===filterSec)
-                                .filter(p=>normalizeString(p.name).includes(normalizeString(searchVal)) || normalizeString(p.description).includes(normalizeString(searchVal)));
-    secProducts.forEach(p=>{
-      const card = document.createElement('div'); card.className='card';
-      const imgSrc = p.image ? p.image : null;
-      card.innerHTML = `
-        <div class='thumb'>${imgSrc?`<img src='${imgSrc}'>`:'<div class="muted">Aucune image</div>'}</div>
-        <div class='card-body'>
-          <div class='name'>${p.name}</div>
-          <div class='desc'>${p.description || ''}</div>
-          <div style='display:flex;justify-content:space-between;align-items:center'>
-            <div class='price'>${(p.price || 0).toLocaleString()} Fcfa</div>
-            <div>
-              <button class="small btn order-btn" onclick="orderWhatsApp('${p.name}', ${p.price})">Commander</button>
-              ${isAdmin()?`<div class="card-actions admin-actions">
-                <button class="small btn" onclick="startEdit('${p.id}')">Edit</button>
-                <button class="small btn secondary" onclick="handleDelete('${p.id}')">Suppr</button>
-              </div>`:''}
-            </div>
-          </div>
-        </div>`;
-      cards.appendChild(card);
-    });
-    secDiv.appendChild(cards); grid.appendChild(secDiv);
-  });
+/* WhatsApp helper */
+function whatsappUrl(p){
+  const base='https://wa.me/'+CONFIG.whatsapp.replace(/\D/g,'');
+  const productUrl=`${window.location.origin}${window.location.pathname}#product-${encodeURIComponent(p.name.toLowerCase().replace(/\s+/g,'-'))}`;
+  const msg=LANG==='fr'
+    ?`Bonjour Mme Laure, je souhaite commander ${p.name} au prix de ${p.price.toLocaleString()} Fcfa.\nVoir le produit ici : ${productUrl}`
+    :`Hello, I want to order ${p.name} for ${p.price.toLocaleString()} Fcfa.\nSee the product here: ${productUrl}`;
+  return base+'?text='+encodeURIComponent(msg);
 }
 
-// WhatsApp order
-function orderWhatsApp(name, price){
-  const url = `https://wa.me/${CONFIG.whatsapp.replace(/\D/g,'')}?text=${encodeURIComponent(`Bonjour, je souhaite commander : ${name} - ${price} Fcfa`)}`;
-  window.open(url,'_blank');
-}
-
-// Admin toggle
-$('#admin-btn').onclick = ()=>{
-  if(isAdmin()){ $('#admin-panel').classList.toggle('show'); } 
-  else { const pw=prompt('Mot de passe admin'); if(pw===CONFIG.defaultPassword){ setAdmin(true); $('#admin-panel').classList.add('show'); } else alert('Mot de passe incorrect'); }
-};
-$('#admin-toggle').onclick=()=>$('#admin-panel').classList.remove('show');
-$('#add-btn').onclick=addOrUpdate;
-$('#cancel-edit').onclick=clearForm;
-$('#add-section-btn').onclick=addOrUpdateSection;
-$('#clear-section-btn').onclick=clearSectionForm;
-$('#logout').onclick=()=>{ setAdmin(false); $('#admin-panel').classList.remove('show'); };
-
-function updateAdminUI(){ $('#admin-panel').style.display=isAdmin()?'block':'none'; }
-$('#year').textContent=new Date().getFullYear();
-
-// Modal image
-$('#products-grid').onclick=e=>{
-  if(e.target.tagName==='IMG'){ $('#img-modal img').src=e.target.src; $('#img-modal').style.display='flex'; }
-};
-$('#close-modal').onclick=()=>$('#img-modal').style.display='none';
-
-// Initial load
-(async function init(){ await renderSections(); await renderProducts(); })();
-
-// Section nav
+/* Build section nav */
 function buildSectionNav(sections){
-  const nav = $('#section-nav'); nav.innerHTML='';
+  const nav = $('#section-nav');
+  nav.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.textContent = 'Toutes';
+  allBtn.onclick = ()=>{
+    qs('#section-nav button').forEach(b=>b.classList.remove('active'));
+    allBtn.classList.add('active');
+    $('#section-filter').value = '';
+    renderProducts();
+  };
+  allBtn.classList.add('active');
+  nav.appendChild(allBtn);
+
   sections.forEach(s=>{
-    const btn = document.createElement('button'); btn.textContent = s.name; btn.onclick=()=>{ $('#section-filter').value=s.id; renderProducts(); };
-    nav.appendChild(btn);
+    const b = document.createElement('button');
+    b.textContent = s.name;
+    b.onclick = ()=>{
+      qs('#section-nav button').forEach(b=>b.classList.remove('active'));
+      b.classList.add('active');
+      // set filter and render
+      $('#section-filter').value = s.id;
+      renderProducts().then(()=> {
+        const el = document.querySelector(`#products-grid [data-section="${s.id}"]`);
+        if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    };
+    nav.appendChild(b);
   });
 }
 
-// Search/filter events
-$('#search').oninput = renderProducts;
-$('#sort').onchange = renderProducts;
-$('#section-filter').onchange = renderProducts;
+/* Render products grouped by section */
+async function renderProducts(){
+  const grid = $('#products-grid');
+  grid.innerHTML = '';
+  let products = await loadProducts();
+  const sections = await loadSections();
+  const q = normalizeString($('#search').value.trim());
+  const sectionFilter = $('#section-filter').value;
+  const sortVal = $('#sort').value;
+
+  if(sortVal === 'price-asc') products.sort((a,b)=>a.price - b.price);
+  else if(sortVal === 'price-desc') products.sort((a,b)=>b.price - a.price);
+
+  // Determine matched section ids based on search query (so searching a section shows all its products)
+  const matchedSectionIds = new Set();
+  if(q){
+    sections.forEach(s=>{
+      if(normalizeString(s.name).includes(q)) matchedSectionIds.add(s.id);
+    });
+  }
+
+  // render per section
+  for(const section of sections){
+    if(sectionFilter && section.id !== sectionFilter) continue;
+    let sectProducts = products.filter(p => p.sectionId === section.id);
+
+    // apply search: include product if its name/desc contains q OR the section is matched
+    if(q){
+      sectProducts = sectProducts.filter(p => {
+        const productText = normalizeString((p.name || '') + ' ' + (p.description || ''));
+        return productText.includes(q) || matchedSectionIds.has(section.id);
+      });
+    }
+
+    if(sectProducts.length === 0) continue;
+
+    const secDiv = document.createElement('div');
+    secDiv.setAttribute('data-section', section.id);
+    secDiv.innerHTML = `<h3 id="section-${section.id}">${section.name}</h3>`;
+    const sectGrid = document.createElement('div'); sectGrid.className = 'grid';
+
+    for(const x of sectProducts){
+      const c = document.createElement('article'); c.className = 'card';
+      c.innerHTML = `<div class='thumb' data-img='${x.image || ''}'>${x.image ? `<img src='${x.image}'>` : '<div class="muted">Aucune image</div>'}</div>
+      <div class='card-body'>
+        <div class='name'>${x.name}</div>
+        <div class='desc'>${x.description || ''}</div>
+        <div style='display:flex;justify-content:space-between;align-items:center'>
+          <div class='price'>${(x.price || 0).toLocaleString()} Fcfa</div>
+          <div class='card-actions'>
+            <a class='small btn' href='${whatsappUrl(x)}' target='_blank'>${t('order')}</a>
+            ${isAdmin() ? `<div class="admin-actions">
+              <button class="small btn secondary edit" data-id="${x.id}">Edit</button>
+              <button class="small btn secondary del" data-id="${x.id}">Suppr</button>
+            </div>` : ''}
+          </div>
+        </div>
+      </div>`;
+      sectGrid.appendChild(c);
+    }
+
+    secDiv.appendChild(sectGrid);
+    grid.appendChild(secDiv);
+  }
+
+  // Image zoom (delegate)
+  qs('.thumb').forEach(t=>t.onclick=()=>{
+    const src = t.querySelector('img')?.src;
+    if(src){ $('#img-modal img').src = src; $('#img-modal').style.display = 'flex'; }
+  });
+  $('#close-modal').onclick = ()=>$('#img-modal').style.display = 'none';
+
+  // admin buttons
+  qs('.edit').forEach(b=>b.onclick=()=>startEdit(b.dataset.id));
+  qs('.del').forEach(b=>b.onclick=()=>handleDeleteProduct(b.dataset.id));
+}
+
+/* ----------------------------
+   Admin UI update & events
+   ---------------------------- */
+function updateAdminUI(){
+  const panel = $('#admin-panel');
+  if(isAdmin()){
+    panel.classList.add('show');
+    $('#admin-btn').style.display='none';
+  } else {
+    panel.classList.remove('show');
+    $('#admin-btn').style.display='inline-block';
+  }
+  // re-render controls that depend on admin
+  renderSections();
+  renderProducts();
+}
+
+/* ----------------------------
+   Event bindings & init
+   ---------------------------- */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  $('#year').textContent = new Date().getFullYear();
+
+  // initial UI populate
+  await renderSections();
+  await renderProducts();
+  updateAdminUI();
+
+  // Admin login
+  $('#admin-btn').onclick = ()=> {
+    const pw = prompt("Réservé à l'administrateur");
+    if(pw === CONFIG.defaultPassword) setAdmin(true);
+    else alert('Mot de passe incorrect');
+  };
+  $('#logout').onclick = ()=>{ setAdmin(false); };
+
+  // Buttons
+  $('#add-btn').onclick = addOrUpdate;
+  $('#cancel-edit').onclick = clearForm;
+  $('#add-section-btn').onclick = addOrUpdateSection;
+  $('#clear-section-btn').onclick = clearSectionForm;
+  $('#search').oninput = renderProducts;
+  $('#sort').onchange = renderProducts;
+  $('#section-filter').onchange = renderProducts;
+
+  // Admin panel toggle
+  let minimized = false;
+  $('#admin-toggle').onclick = ()=>{
+    const content = $('#admin-content');
+    minimized = !minimized;
+    content.style.display = minimized ? 'none' : 'block';
+    $('#admin-toggle').textContent = minimized ? '+' : '–';
+  };
+
+  // File preview
+  $('#file').onchange = e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>$('#preview').innerHTML = `<img src='${reader.result}'>`;
+    reader.readAsDataURL(f);
+  };
+
+  // Language toggle
+  $('#lang-fr').onclick = ()=>{ LANG='fr'; renderProducts(); };
+  $('#lang-en').onclick = ()=>{ LANG='en'; renderProducts(); };
+
+  // Ensure admin UI visible if session already admin
+  if(isAdmin()) updateAdminUI();
+});
 </script>
 </body>
 </html>

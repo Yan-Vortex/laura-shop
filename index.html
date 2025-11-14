@@ -6,13 +6,8 @@
 <title>Laura Shop's — Catalogue</title>
 <style>
 :root{
-  --bg:#f6f7fb;
-  --card:#ffffff;
-  --accent:#8e44ad;
-  --muted:#666;
-  --glass: rgba(255,255,255,0.6);
-  --radius:12px;
-  --shadow:0 6px 18px rgba(19,24,33,0.08);
+  --bg:#f6f7fb; --card:#ffffff; --accent:#8e44ad; --muted:#666;
+  --glass: rgba(255,255,255,0.6); --radius:12px; --shadow:0 6px 18px rgba(19,24,33,0.08);
 }
 *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
 body{margin:0;background:linear-gradient(180deg,#f7fbfb 0%,var(--bg) 100%);color:#111}
@@ -157,7 +152,6 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
     <button id="admin-toggle">–</button>
   </h3>
   <div class="notice" id="admin-info">Connecté en tant qu'administrateur</div>
-
   <div id="admin-content">
     <h4>Produits</h4>
     <input id="name-input" placeholder="Nom du produit">
@@ -205,9 +199,15 @@ const t=k=>TEXT[LANG][k]||k;
 const normalizeString=str=>String(str||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
 async function apiGet(url){ const r=await fetch(url,{cache:'no-store'}); return r.ok?await r.json():[]; }
-async function apiPost(url, body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r.ok?await r.json():null; }
-async function apiPut(url, body){ const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r.ok?await r.json():null; }
+async function apiPost(url, body){ const r=await fetch(url,{method:'POST',body:body instanceof FormData?body:JSON.stringify(body),headers:body instanceof FormData?{}:{'Content-Type':'application/json'}}); return r.ok?await r.json():null; }
+async function apiPut(url, body){ const r=await fetch(url,{method:'PUT',body:body instanceof FormData?body:JSON.stringify(body),headers:body instanceof FormData?{}:{'Content-Type':'application/json'}}); return r.ok?await r.json():null; }
 async function apiDelete(url){ const r=await fetch(url,{method:'DELETE'}); return r.ok; }
+
+function isAdmin(){return sessionStorage.getItem('admin')==='1'}
+function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
+
+let editingId=null;
+let editingSectionId=null;
 
 async function loadSections(){ return await apiGet(API.sections); }
 async function addSection(section){ return await apiPost(API.sections, section); }
@@ -219,16 +219,9 @@ async function addProduct(product){ return await apiPost(API.products, product);
 async function saveProduct(product){ return await apiPut(`${API.products}/${product.id}`, product); }
 async function deleteProductById(id){ return await apiDelete(`${API.products}/${id}`); }
 
-function isAdmin(){return sessionStorage.getItem('admin')==='1'}
-function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
-
-let editingId=null;
-let editingSectionId=null;
-
 async function renderSections(){
   const list = $('#sections-list'); list.innerHTML = '';
   const sections = await loadSections();
-
   sections.forEach(s=>{
     const li = document.createElement('li');
     li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center'; li.style.marginBottom='4px';
@@ -241,7 +234,6 @@ async function renderSections(){
   });
   qs('.edit-section').forEach(b=>b.onclick=()=>startEditSection(b.dataset.id));
   qs('.del-section').forEach(b=>b.onclick=()=>handleDeleteSection(b.dataset.id));
-
   await updateSectionSelects(sections);
   buildSectionNav(sections);
   renderSectionFilter();
@@ -264,14 +256,9 @@ function clearSectionForm(){ editingSectionId=null; $('#section-input').value=''
 async function addOrUpdateSection(){
   const name = $('#section-input').value.trim();
   if(!name) return alert('Nom de section requis');
-  if(editingSectionId){
-    try{ await saveSection({id:editingSectionId, name}); }catch(e){ console.warn(e); alert('Erreur mise à jour section'); }
-  } else {
-    try{ await addSection({name}); }catch(e){ console.warn(e); alert('Erreur création section'); }
-  }
-  clearSectionForm();
-  await renderSections();
-  await renderProducts();
+  if(editingSectionId){ await saveSection({id:editingSectionId, name}); } 
+  else { await addSection({name}); }
+  clearSectionForm(); await renderSections(); await renderProducts();
 }
 async function startEditSection(id){
   const s = (await loadSections()).find(x=>x.id===id);
@@ -279,11 +266,10 @@ async function startEditSection(id){
 }
 async function handleDeleteSection(id){
   if(!confirm('Supprimer cette section et tous ses articles ?')) return;
-  try{ await deleteSectionById(id); }catch(e){ console.warn(e); }
+  await deleteSectionById(id);
   const products = await loadProducts();
-  for(const p of products){ if(p.sectionId === id){ try{ await deleteProductById(p.id); }catch(e){ console.warn(e); } } }
-  await renderSections();
-  await renderProducts();
+  for(const p of products){ if(p.sectionId===id) await deleteProductById(p.id); }
+  await renderSections(); await renderProducts();
 }
 
 function clearForm(){ editingId=null; $('#name-input').value=''; $('#price-input').value=''; $('#desc-input').value=''; $('#file').value=''; $('#preview').innerHTML=''; $('#section-select').value=''; }
@@ -295,30 +281,13 @@ async function addOrUpdate(){
   const secId = $('#section-select').value;
   if(!n) return alert('Nom requis');
   if(!secId) return alert('Section requise');
-
   const f = $('#file').files[0];
   const formData = new FormData();
-  formData.append('name', n);
-  formData.append('price', pr);
-  formData.append('description', d);
-  formData.append('sectionId', secId);
+  formData.append('name', n); formData.append('price', pr); formData.append('description', d); formData.append('sectionId', secId);
   if(f) formData.append('image', f);
-
-  try {
-    let res;
-    if(editingId){
-      res = await fetch(`${API.products}/${editingId}`, { method: 'PUT', body: formData });
-    } else {
-      res = await fetch(API.products, { method: 'POST', body: formData });
-    }
-    if(!res.ok) throw new Error('Erreur serveur');
-  } catch(e){
-    console.warn(e);
-    alert('Erreur ajout / modification produit');
-  }
-
-  clearForm();
-  await renderProducts();
+  if(editingId){ await apiPut(`${API.products}/${editingId}`, formData); } 
+  else { await apiPost(API.products, formData); }
+  clearForm(); await renderProducts();
 }
 
 async function startEdit(id){
@@ -334,7 +303,7 @@ async function startEdit(id){
 
 async function handleDelete(id){
   if(!confirm('Supprimer cet article ?')) return;
-  try{ await deleteProductById(id); }catch(e){ console.warn(e); }
+  await deleteProductById(id);
   await renderProducts();
 }
 
@@ -349,52 +318,52 @@ $('#file').onchange = e=>{
 async function renderProducts(){
   const sections = await loadSections();
   const products = await loadProducts();
-  const grid = $('#products-grid'); 
-  grid.innerHTML='';
+  const grid = $('#products-grid'); grid.innerHTML='';
+  const filterSec = $('#section-filter').value;
+  const searchVal = $('#search').value.trim().toLowerCase();
 
   sections.forEach(sec=>{
     const secDiv = document.createElement('div');
     secDiv.innerHTML = `<h3>${sec.name}</h3>`;
-
-    const cards = document.createElement('div'); 
-    cards.className='grid';
-
-    const secProducts = products.filter(p=>p.sectionId===sec.id);
-
+    const cards = document.createElement('div'); cards.className='grid';
+    const secProducts = products.filter(p=>p.sectionId===sec.id)
+                                .filter(p=>!filterSec || p.sectionId===filterSec)
+                                .filter(p=>normalizeString(p.name).includes(normalizeString(searchVal)) || normalizeString(p.description).includes(normalizeString(searchVal)));
     secProducts.forEach(p=>{
-      const card = document.createElement('div'); 
-      card.className='card';
+      const card = document.createElement('div'); card.className='card';
       const imgSrc = p.image ? p.image : null;
-
       card.innerHTML = `
-        <div class='thumb'>
-          ${imgSrc ? `<img src='${imgSrc}'>` : '<div class="muted">Aucune image</div>'}
-        </div>
+        <div class='thumb'>${imgSrc?`<img src='${imgSrc}'>`:'<div class="muted">Aucune image</div>'}</div>
         <div class='card-body'>
           <div class='name'>${p.name}</div>
           <div class='desc'>${p.description || ''}</div>
           <div style='display:flex;justify-content:space-between;align-items:center'>
             <div class='price'>${(p.price || 0).toLocaleString()} Fcfa</div>
-            ${isAdmin() ? `
-            <div class="card-actions admin-actions">
-              <button class="small btn" onclick="startEdit('${p.id}')">Edit</button>
-              <button class="small btn secondary" onclick="handleDelete('${p.id}')">Suppr</button>
-            </div>` : ''}
+            <div>
+              <button class="small btn order-btn" onclick="orderWhatsApp('${p.name}', ${p.price})">Commander</button>
+              ${isAdmin()?`<div class="card-actions admin-actions">
+                <button class="small btn" onclick="startEdit('${p.id}')">Edit</button>
+                <button class="small btn secondary" onclick="handleDelete('${p.id}')">Suppr</button>
+              </div>`:''}
+            </div>
           </div>
-        </div>
-      `;
+        </div>`;
       cards.appendChild(card);
     });
-
-    secDiv.appendChild(cards);
-    grid.appendChild(secDiv);
+    secDiv.appendChild(cards); grid.appendChild(secDiv);
   });
 }
 
+// WhatsApp order
+function orderWhatsApp(name, price){
+  const url = `https://wa.me/${CONFIG.whatsapp.replace(/\D/g,'')}?text=${encodeURIComponent(`Bonjour, je souhaite commander : ${name} - ${price} Fcfa`)}`;
+  window.open(url,'_blank');
+}
 
 // Admin toggle
 $('#admin-btn').onclick = ()=>{
-  if(isAdmin()){ $('#admin-panel').classList.toggle('show'); } else { const pw=prompt('Mot de passe admin'); if(pw===CONFIG.defaultPassword){ setAdmin(true); $('#admin-panel').classList.add('show'); } else alert('Mot de passe incorrect'); }
+  if(isAdmin()){ $('#admin-panel').classList.toggle('show'); } 
+  else { const pw=prompt('Mot de passe admin'); if(pw===CONFIG.defaultPassword){ setAdmin(true); $('#admin-panel').classList.add('show'); } else alert('Mot de passe incorrect'); }
 };
 $('#admin-toggle').onclick=()=>$('#admin-panel').classList.remove('show');
 $('#add-btn').onclick=addOrUpdate;
@@ -423,9 +392,11 @@ function buildSectionNav(sections){
     nav.appendChild(btn);
   });
 }
+
+// Search/filter events
+$('#search').oninput = renderProducts;
+$('#sort').onchange = renderProducts;
+$('#section-filter').onchange = renderProducts;
 </script>
 </body>
 </html>
-
-
-

@@ -75,7 +75,6 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   .admin-actions .small{padding:10px 12px;font-size:15px;border-radius:12px}
   .card .admin-actions{position:absolute;right:10px;bottom:12px;flex-direction:row-reverse;background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));padding:6px;border-radius:999px;box-shadow:var(--shadow)}
   .card .admin-actions .small{box-shadow:none}
-  /* add a subtle touch target area */
   .card{padding-bottom:18px}
 }
 
@@ -210,200 +209,18 @@ const API = {
 };
 const $=s=>document.querySelector(s), qs=s=>Array.from(document.querySelectorAll(s));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-const LOCAL_PRODUCTS_KEY='shop_products', LOCAL_SECTIONS_KEY='shop_sections';
 let LANG='fr';
 const TEXT={fr:{order:'Commander sur WhatsApp',admin:'Espace administrateur'},en:{order:'Order on WhatsApp',admin:'Admin Area'}};
 const t=k=>TEXT[LANG][k]||k;
 const normalizeString=str=>String(str||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
 /* ----------------------------
-   IndexedDB helper (used only for migration/fallback)
+   Server API wrapper ONLY
    ---------------------------- */
-const DB_NAME = "LauraShopDB";
-const DB_VERSION = 1;
-const STORE_PRODUCTS = "products";
-const STORE_SECTIONS = "sections";
-
-function openDb(){
-  return new Promise((resolve, reject)=>{
-    if(!window.indexedDB) return reject(new Error('IndexedDB non pris en charge'));
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if(!db.objectStoreNames.contains(STORE_PRODUCTS)){
-        db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
-      }
-      if(!db.objectStoreNames.contains(STORE_SECTIONS)){
-        db.createObjectStore(STORE_SECTIONS, { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = ()=>resolve(req.result);
-    req.onerror = ()=>reject(req.error);
-  });
-}
-async function idbGetAll(storeName){
-  try{
-    const db = await openDb();
-    return await new Promise((resolve,reject)=>{
-      const tx = db.transaction(storeName,'readonly');
-      const store = tx.objectStore(storeName);
-      const req = store.getAll();
-      req.onsuccess = ()=>resolve(req.result || []);
-      req.onerror = ()=>reject(req.error);
-    });
-  }catch(e){ return []; }
-}
-async function idbClearStore(storeName){
-  try{
-    const db = await openDb();
-    return await new Promise((resolve,reject)=>{
-      const tx = db.transaction(storeName,'readwrite');
-      const store = tx.objectStore(storeName);
-      const req = store.clear();
-      req.onsuccess = ()=>resolve();
-      req.onerror = ()=>reject(req.error);
-    });
-  }catch(e){ /* ignore */ }
-}
-
-/* ----------------------------
-   Server API wrapper with fallback to IndexedDB
-   ---------------------------- */
-async function apiGet(url){
-  try{
-    const r = await fetch(url, {cache:'no-store'});
-    if(!r.ok) throw new Error('fetch failed');
-    return await r.json();
-  }catch(e){
-    // fallback: read from IndexedDB
-    if(url.endsWith('/sections')) return await idbGetAll(STORE_SECTIONS);
-    if(url.endsWith('/products')) return await idbGetAll(STORE_PRODUCTS);
-    return [];
-  }
-}
-async function apiPost(url, body){
-  try{
-    const r = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok) throw new Error('post failed');
-    return await r.json();
-  }catch(e){
-    // fallback: save to indexedDB if possible
-    try{
-      const db = await openDb();
-      const tx = db.transaction(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS,'readwrite');
-      const store = tx.objectStore(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS);
-      const obj = {...body, id: body.id || uid()};
-      const req = store.add(obj);
-      return await new Promise((res,rej)=>{ req.onsuccess=()=>res(obj); req.onerror=()=>{ store.put(obj); res(obj); }; });
-    }catch(err){ throw e; }
-  }
-}
-async function apiPut(url, body){
-  try{
-    const r = await fetch(url, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok) throw new Error('put failed');
-    return await r.json();
-  }catch(e){
-    // fallback: put into indexedDB
-    try{
-      const db = await openDb();
-      const tx = db.transaction(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS,'readwrite');
-      const store = tx.objectStore(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS);
-      const obj = {...body};
-      const req = store.put(obj);
-      return await new Promise((res,rej)=>{ req.onsuccess=()=>res(obj); req.onerror=()=>rej(req.error); });
-    }catch(err){ throw e; }
-  }
-}
-async function apiDelete(url){
-  try{
-    const r = await fetch(url, {method:'DELETE'});
-    if(!r.ok) throw new Error('delete failed');
-    return true;
-  }catch(e){
-    // fallback delete from indexedDB
-    const id = url.split('/').pop();
-    try{
-      const db = await openDb();
-      const tx = db.transaction(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS,'readwrite');
-      const store = tx.objectStore(url.includes('sections')?STORE_SECTIONS:STORE_PRODUCTS);
-      const req = store.delete(id);
-      return await new Promise((res,rej)=>{ req.onsuccess=()=>res(true); req.onerror=()=>rej(req.error); });
-    }catch(err){ return false; }
-  }
-}
-
-/* ----------------------------
-   Migration: IndexedDB -> Server
-   ---------------------------- */
-async function migrateIndexedDBToServer(){
-  try{
-    // try to fetch server lists (if server unreachable, the apiGet fallback will return idb lists)
-    // But we want to determine if server is really online. Try a lightweight request:
-    const r = await fetch(API.sections, {method:'GET', cache:'no-store'});
-    const serverOnline = r.ok;
-    if(!serverOnline){
-      console.warn('API non disponible — migration serveur abandonnée (fallback IndexedDB reste actif).');
-      return;
-    }
-    const serverSections = await r.json(); // array
-    // fetch local data to migrate
-    const localSections = await idbGetAll(STORE_SECTIONS);
-    const localProducts = await idbGetAll(STORE_PRODUCTS);
-
-    if((!localSections.length && !localProducts.length)) return; // nothing to migrate
-
-    // map existing server section names -> id (case-insensitive)
-    const serverMap = {};
-    serverSections.forEach(s=> serverMap[normalizeString(s.name)] = s);
-
-    // 1) migrate sections: for each local section, ensure server section exists
-    const sectionIdMap = {}; // oldLocalId -> serverId
-    for(const ls of localSections){
-      const key = normalizeString(ls.name);
-      if(serverMap[key]){
-        sectionIdMap[ls.id] = serverMap[key].id;
-      } else {
-        // create on server
-        try{
-          const created = await apiPost(API.sections, { name: ls.name });
-          sectionIdMap[ls.id] = created.id;
-          serverMap[key] = created;
-        }catch(err){
-          console.warn('Erreur création section sur serveur', err);
-        }
-      }
-    }
-
-    // 2) migrate products: for each local product, post to server with mapped sectionId (if any)
-    for(const lp of localProducts){
-      const mappedSectionId = lp.sectionId ? (sectionIdMap[lp.sectionId] || lp.sectionId) : null;
-      const payload = {
-        name: lp.name,
-        price: lp.price || 0,
-        description: lp.description || '',
-        image: lp.image || null,
-        sectionId: mappedSectionId
-      };
-      try{
-        await apiPost(API.products, payload);
-      }catch(err){
-        console.warn('Erreur création produit sur serveur', err);
-      }
-    }
-
-    // if we reach here without throwing, clear local IndexedDB stores
-    try{
-      await idbClearStore(STORE_PRODUCTS);
-      await idbClearStore(STORE_SECTIONS);
-      console.log('Migration IndexeDB → Serveur terminée et données locales supprimées.');
-    }catch(e){
-      console.warn('Migration réussie mais suppression locale échouée', e);
-    }
-  }catch(e){
-    console.warn('Migration non effectuée :', e);
-  }
-}
+async function apiGet(url){ const r=await fetch(url,{cache:'no-store'}); return r.ok?await r.json():[]; }
+async function apiPost(url, body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r.ok?await r.json():null; }
+async function apiPut(url, body){ const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r.ok?await r.json():null; }
+async function apiDelete(url){ const r=await fetch(url,{method:'DELETE'}); return r.ok; }
 
 /* ----------------------------
    Data layer (server primary)
@@ -423,7 +240,6 @@ async function deleteProductById(id){ return await apiDelete(`${API.products}/${
    ---------------------------- */
 function isAdmin(){return sessionStorage.getItem('admin')==='1'}
 function setAdmin(v){sessionStorage.setItem('admin',v?'1':'0'); updateAdminUI();}
-
 /* ----------------------------
    Rendering & business logic
    ---------------------------- */
@@ -774,3 +590,4 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+

@@ -114,7 +114,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
     <div class="logo">LS</div>
     <div>
       <div class="title" id="shop-name">Laura Shop's</div>
-      <div class="muted" id="shop-sub">Marketplace</div>
+      <div class="muted" id="shop-sub">Revendeur — produits sélectionnés</div>
     </div>
   </div>
   <nav>
@@ -285,13 +285,7 @@ async function saveSection(section) {
 }
 
 async function deleteSectionById(id) {
-  try {
-    const response = await fetch(`${API.sections}/${id}`, { method: 'DELETE' });
-    return response.ok;
-  } catch (e) {
-    console.error('API DELETE error:', e);
-    return false;
-  }
+  return await apiDelete(`${API.sections}/${id}`);
 }
 
 // Fonctions pour les produits
@@ -308,13 +302,7 @@ async function saveProduct(product) {
 }
 
 async function deleteProductById(id) {
-  try {
-    const response = await fetch(`${API.products}/${id}`, { method: 'DELETE' });
-    return response.ok;
-  } catch (e) {
-    console.error('API DELETE error:', e);
-    return false;
-  }
+  return await apiDelete(`${API.products}/${id}`);
 }
 
 // Gestion de l'admin
@@ -327,11 +315,21 @@ function setAdmin(v) {
   updateAdminUI();
 }
 
+function showAdminButtons() {
+  qs('.admin-actions').forEach(btn => btn.style.display = 'flex');
+  setTimeout(() => {
+    renderProducts();
+  }, 0);
+}
+
+function hideAdminButtons() {
+  qs('.admin-actions').forEach(btn => btn.style.display = 'none');
+}
+
 // Variables d'état
 let editingId = null;
 let editingSectionId = null;
 
-// Fonction pour afficher les sections
 // Fonction pour afficher les sections
 async function renderSections() {
   try {
@@ -341,8 +339,12 @@ async function renderSections() {
     list.innerHTML = '';
     let sections = await loadSections();
     
-    // TRIER LES SECTIONS PAR ID DÉCROISSANT (LES PLUS RÉCENTES EN PREMIER)
-    sections.sort((a, b) => b.id - a.id);
+    // TRIER PAR DATE DE MISE À JOUR (les plus récentes en premier)
+    sections.sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.createdAt || a._id);
+      const dateB = new Date(b.updatedAt || b.createdAt || b._id);
+      return dateB - dateA; // Décroissant
+    });
 
     // Liste admin
     sections.forEach(s => {
@@ -354,8 +356,8 @@ async function renderSections() {
       li.innerHTML = `
         <span>${s.name}</span>
         <span>
-          <button class="small btn secondary edit-section" data-id="${s.id}">Edit</button>
-          <button class="small btn secondary del-section" data-id="${s.id}">Suppr</button>
+          <button class="small btn secondary edit-section" data-id="${s._id || s.id}">Edit</button>
+          <button class="small btn secondary del-section" data-id="${s._id || s.id}">Suppr</button>
         </span>
       `;
       list.appendChild(li);
@@ -365,7 +367,7 @@ async function renderSections() {
     qs('.edit-section').forEach(b => b.onclick = () => startEditSection(b.dataset.id));
     qs('.del-section').forEach(b => b.onclick = () => handleDeleteSection(b.dataset.id));
 
-    // Mise à jour des sélecteurs avec les sections triées
+    // Mise à jour des sélecteurs
     await updateSectionSelects(sections);
     buildSectionNav(sections);
     await renderSectionFilter();
@@ -373,17 +375,24 @@ async function renderSections() {
     console.error('Error in renderSections:', error);
   }
 }
-  
+
 async function updateSectionSelects(sections) {
   const sel = $('#section-select');
   if (!sel) return;
 
   sel.innerHTML = '<option value="">-- Choisir une section --</option>';
+  
+  // TRIER PAR DATE DE MISE À JOUR
+  sections.sort((a, b) => {
+    const dateA = new Date(a.updatedAt || a.createdAt || a._id);
+    const dateB = new Date(b.updatedAt || b.createdAt || b._id);
+    return dateB - dateA; // Décroissant
+  });
+  
   sections.forEach(s => {
     const opt = document.createElement('option');
-    opt.value = s._id || s.id; // MODIFIEZ CETTE LIGNE (important !)
+    opt.value = s._id || s.id;
     opt.textContent = s.name;
-    console.log('📋 Option section:', s._id || s.id, s.name); // AJOUTEZ CETTE LIGNE
     sel.appendChild(opt);
   });
 }
@@ -394,11 +403,17 @@ async function renderSectionFilter() {
 
   sel.innerHTML = '<option value="">Toutes les sections</option>';
   let sections = await loadSections();
-  // TRIER LES SECTIONS PAR ID DÉCROISSANT
-  sections.sort((a, b) => b.id - a.id);
+  
+  // TRIER PAR DATE DE MISE À JOUR
+  sections.sort((a, b) => {
+    const dateA = new Date(a.updatedAt || a.createdAt || a._id);
+    const dateB = new Date(b.updatedAt || b.createdAt || b._id);
+    return dateB - dateA; // Décroissant
+  });
+  
   sections.forEach(s => {
     const opt = document.createElement('option');
-    opt.value = s.id;
+    opt.value = s._id || s.id;
     opt.textContent = s.name;
     sel.appendChild(opt);
   });
@@ -433,7 +448,7 @@ async function addOrUpdateSection() {
 async function startEditSection(id) {
   try {
     const sections = await loadSections();
-    const s = sections.find(x => x.id === id);
+    const s = sections.find(x => (x._id || x.id) === id);
     if (!s) return;
 
     editingSectionId = id;
@@ -453,7 +468,7 @@ async function handleDeleteSection(id) {
     const products = await loadProducts();
     for (const p of products) {
       if (p.sectionId === id) {
-        await deleteProductById(p.id);
+        await deleteProductById(p._id || p.id);
       }
     }
 
@@ -481,12 +496,12 @@ async function addOrUpdate() {
     const n = $('#name-input').value.trim();
     const pr = parseFloat($('#price-input').value) || 0;
     const d = $('#desc-input').value.trim();
-    const secId = $('#section-select').value; // Cette ligne peut être le problème
+    const secId = $('#section-select').value;
 
-    console.log('🔍 Section ID récupérée:', secId, 'Type:', typeof secId); // AJOUTEZ CETTE LIGNE
+    console.log('🔍 Section ID récupérée:', secId, 'Type:', typeof secId);
 
     if (!n) return alert('Nom requis');
-    if (!secId || secId === 'undefined') { // MODIFIEZ CETTE LIGNE
+    if (!secId || secId === '' || secId === 'undefined') {
       return alert('Section requise - Veuillez sélectionner une section valide');
     }
 
@@ -532,7 +547,7 @@ async function addOrUpdate() {
 
     clearForm();
     
-    // Rafraîchir pour voir les changements
+    // FORCER LE RAFRAÎCHISSEMENT COMPLET POUR VOIR LA NOUVELLE SECTION EN HAUT
     setTimeout(() => {
       location.reload();
     }, 500);
@@ -542,10 +557,11 @@ async function addOrUpdate() {
     alert('Erreur ajout / modification produit');
   }
 }
+
 async function startEdit(id) {
   try {
     const products = await loadProducts();
-    const p = products.find(x => (x._id || x.id) === id); // MODIFIEZ CETTE LIGNE
+    const p = products.find(x => (x._id || x.id) === id);
     if (!p) return;
 
     editingId = id;
@@ -577,6 +593,7 @@ async function handleDeleteProduct(id) {
     alert('Erreur lors de la suppression du produit');
   }
 }
+
 // Fonction pour générer l'URL WhatsApp
 function whatsappUrl(p) {
   const base = 'https://wa.me/' + CONFIG.whatsapp.replace(/\D/g, '');
@@ -587,8 +604,7 @@ function whatsappUrl(p) {
   return base + '?text=' + encodeURIComponent(msg);
 }
 
-// Navigation par sections
-// Navigation par sections
+// Navigation par sections - VERSION CORRIGÉE
 function buildSectionNav(sections) {
   const nav = $('#section-nav');
   if (!nav) return;
@@ -608,11 +624,11 @@ function buildSectionNav(sections) {
   };
   nav.appendChild(allBtn);
 
-  // Trier les sections par ID décroissant (les plus récentes en premier)
+  // Trier les sections par date de mise à jour
   sections.sort((a, b) => {
-    const idA = a._id || a.id;
-    const idB = b._id || b.id;
-    return idB.localeCompare(idA);
+    const dateA = new Date(a.updatedAt || a.createdAt || a._id);
+    const dateB = new Date(b.updatedAt || b.createdAt || b._id);
+    return dateB - dateA; // Décroissant
   });
 
   // Boutons pour chaque section
@@ -654,18 +670,46 @@ function buildSectionNav(sections) {
   console.log('✅ Navigation par sections créée avec', sections.length, 'sections');
 }
 
+// Synchroniser la navigation et le select de filtre
+function syncSectionFilter() {
+  const sectionFilter = $('#section-filter').value;
+  const navButtons = qs('#section-nav button');
+  
+  // Retirer toutes les classes active
+  navButtons.forEach(btn => btn.classList.remove('active'));
+  
+  if (!sectionFilter) {
+    // Activer "Toutes"
+    navButtons[0]?.classList.add('active');
+  } else {
+    // Activer le bouton correspondant
+    const activeBtn = navButtons.find(btn => 
+      btn.getAttribute('data-section-id') === sectionFilter
+    );
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+    }
+  }
+}
+
 // Affichage des produits
-// Affichage des produits
-sync function renderProducts() {
+async function renderProducts() {
   try {
     console.log('🔄 Début de renderProducts');
     const grid = $('#products-grid');
-    if (!grid) return;
+    if (!grid) {
+      console.error('❌ products-grid non trouvé');
+      return;
+    }
 
     grid.innerHTML = '';
 
     const products = await loadProducts();
-    const sections = await loadSections();
+    console.log('📦 Produits chargés:', products);
+
+    let sections = await loadSections();
+    console.log('📁 Sections chargées:', sections);
+
     const q = normalizeString($('#search').value.trim());
     const sectionFilter = $('#section-filter').value;
     const sortVal = $('#sort').value;
@@ -687,11 +731,11 @@ sync function renderProducts() {
       });
     }
 
-    // Trier les sections par ID décroissant
+    // TRIER PAR DATE DE MISE À JOUR
     sections.sort((a, b) => {
-      const idA = a._id || a.id;
-      const idB = b._id || b.id;
-      return idB.localeCompare(idA);
+      const dateA = new Date(a.updatedAt || a.createdAt || a._id);
+      const dateB = new Date(b.updatedAt || b.createdAt || b._id);
+      return dateB - dateA; // Décroissant
     });
 
     // IDs des sections correspondant à la recherche
@@ -871,28 +915,6 @@ sync function renderProducts() {
   }
 }
 
-  // Synchroniser la navigation et le select de filtre
-function syncSectionFilter() {
-  const sectionFilter = $('#section-filter').value;
-  const navButtons = qs('#section-nav button');
-  
-  // Retirer toutes les classes active
-  navButtons.forEach(btn => btn.classList.remove('active'));
-  
-  if (!sectionFilter) {
-    // Activer "Toutes"
-    navButtons[0]?.classList.add('active');
-  } else {
-    // Activer le bouton correspondant
-    const activeBtn = navButtons.find(btn => 
-      btn.getAttribute('data-section-id') === sectionFilter
-    );
-    if (activeBtn) {
-      activeBtn.classList.add('active');
-    }
-  }
-}
-  
 // Mise à jour de l'interface admin
 function updateAdminUI() {
   const panel = $('#admin-panel');
@@ -903,9 +925,11 @@ function updateAdminUI() {
   if (isAdmin()) {
     panel.classList.add('show');
     adminBtn.style.display = 'none';
+    showAdminButtons();
   } else {
     panel.classList.remove('show');
     adminBtn.style.display = 'inline-block';
+    hideAdminButtons();
   }
 }
 
@@ -926,21 +950,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pw = prompt("Réservé à l'administrateur");
       if (pw === CONFIG.defaultPassword) {
         setAdmin(true);
-        setTimeout(() => {
-    location.reload();
-   }, 1);
       } else {
         alert('Mot de passe incorrect');
       }
     };
 
     $('#logout').onclick = () => { 
-  setAdmin(false); 
-  // Rafraîchir la page après la déconnexion
-  setTimeout(() => {
-    location.reload();
-  }, 1);
-};
+      setAdmin(false); 
+    };
+
     $('#add-btn').onclick = addOrUpdate;
     $('#cancel-edit').onclick = clearForm;
     $('#add-section-btn').onclick = addOrUpdateSection;
@@ -949,9 +967,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('#search').oninput = renderProducts;
     $('#sort').onchange = renderProducts;
     $('#section-filter').onchange = () => {
-  syncSectionFilter();
-  renderProducts();
-};
+      syncSectionFilter();
+      renderProducts();
+    };
 
     // Toggle du panel admin
     let minimized = false;
@@ -992,12 +1010,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

@@ -165,19 +165,19 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 #section-nav-sidebar {
   position: fixed;
   top: 0;
-  right: -300px;
+  left: -300px;  /* Changé à left */
   width: 280px;
   height: 100%;
   background: white;
-  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+  box-shadow: 2px 0 10px rgba(0,0,0,0.1); /* Ombre inversée */
   z-index: 101;
-  transition: right 0.3s ease;
+  transition: left 0.3s ease; /* Changé à left */
   padding: 20px;
   overflow-y: auto;
 }
 
 #section-nav-sidebar.show {
-  right: 0;
+  left: 0; /* Changé à left */
 }
 
 #section-nav-sidebar h3 {
@@ -218,7 +218,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 #close-sidebar {
   position: absolute;
   top: 15px;
-  right: 15px;
+  right: 15px; /* Garde à droite pour le bouton fermer */
   background: none;
   border: none;
   font-size: 24px;
@@ -1379,3 +1379,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
+

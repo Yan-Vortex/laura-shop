@@ -106,6 +106,95 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 #section-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 24px 0}
 #section-nav button{background:transparent;color:var(--accent);border:1px solid rgba(142,68,173,0.15);padding:8px 12px;border-radius:999px;cursor:pointer}
 #section-nav button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Styles pour les onglets admin */
+.admin-tabs {
+  display: flex;
+  border-bottom: 1px solid #e7e7e7;
+  margin-bottom: 12px;
+}
+
+.admin-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  transition: all 0.2s ease;
+}
+
+.admin-tab:hover {
+  color: var(--accent);
+}
+
+.admin-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Ajustements pour le contenu des onglets */
+#products-tab input,
+#products-tab textarea,
+#products-tab select {
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+#sections-tab input {
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+#sections-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #e7e7e7;
+  border-radius: var(--radius);
+  padding: 8px;
+  margin-top: 8px;
+  background: #f9f9f9;
+}
+
+#sections-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+
+#sections-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* Pour les écrans très petits */
+@media (max-width: 400px) {
+  .admin-panel {
+    width: 320px;
+    right: 10px;
+    bottom: 10px;
+  }
+  
+  #sections-list {
+    max-height: 100px;
+  }
+}
 </style>
 </head>
 <body>
@@ -114,7 +203,7 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
     <div class="logo">LS</div>
     <div>
       <div class="title" id="shop-name">Laura Shop's</div>
-      <div class="muted" id="shop-sub">Marketplace</div>
+      <div class="muted" id="shop-sub">Revendeur — produits sélectionnés</div>
     </div>
   </div>
   <nav>
@@ -156,29 +245,43 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   <div class="notice" id="admin-info">Connecté en tant qu'administrateur</div>
 
   <div id="admin-content">
-    <h4>Produits</h4>
-    <input id="name-input" placeholder="Nom du produit">
-    <input id="price-input" placeholder="Prix (Fcfa)" inputmode="numeric">
-    <textarea id="desc-input" placeholder="Description" rows="2"></textarea>
-    <select id="section-select"></select>
-    <div class="thumb-preview" id="preview"></div>
-    <input id="file" type="file" accept="image/*">
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="add-btn" class="btn">Ajouter / Modifier</button>
-      <button id="cancel-edit" class="btn secondary small">Annuler</button>
+    <!-- Onglets -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="products">Produits</button>
+      <button class="admin-tab" data-tab="sections">Sections</button>
     </div>
-    <div style="margin-top:16px">
-      <h4>Sections</h4>
+
+    <!-- Contenu des onglets -->
+    <div id="products-tab" class="tab-content active">
+      <h4>Gestion des produits</h4>
+      <input id="name-input" placeholder="Nom du produit">
+      <input id="price-input" placeholder="Prix (Fcfa)" inputmode="numeric">
+      <textarea id="desc-input" placeholder="Description" rows="2"></textarea>
+      <select id="section-select"></select>
+      <div class="thumb-preview" id="preview"></div>
+      <input id="file" type="file" accept="image/*">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="add-btn" class="btn">Ajouter / Modifier</button>
+        <button id="cancel-edit" class="btn secondary small">Annuler</button>
+      </div>
+    </div>
+
+    <div id="sections-tab" class="tab-content">
+      <h4>Gestion des sections</h4>
       <input id="section-input" placeholder="Nom de la section">
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button id="add-section-btn" class="btn small">Ajouter / Modifier</button>
         <button id="clear-section-btn" class="btn secondary small">Annuler</button>
       </div>
-      <ul id="sections-list" style="margin-top:8px;list-style:none;padding:0;"></ul>
+      <div style="margin-top:12px">
+        <strong style="font-size:14px;">Sections existantes :</strong>
+        <ul id="sections-list" style="margin-top:6px;list-style:none;padding:0;"></ul>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px">
+
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #eee">
       <button id="logout" class="btn secondary small">Se déconnecter</button>
-      <div class="muted" style="font-size:13px">Mot de passe admin : <strong id="pw-display">Laure1975</strong></div>
+      <div class="muted" style="font-size:12px">Mot de passe : <strong id="pw-display">Laure1975</strong></div>
     </div>
   </div>
 </div>
@@ -330,6 +433,25 @@ function hideAdminButtons() {
 let editingId = null;
 let editingSectionId = null;
 
+// Gestion des onglets admin
+function initAdminTabs() {
+  const tabs = qs('.admin-tab');
+  const tabContents = qs('.tab-content');
+  
+  tabs.forEach(tab => {
+    tab.onclick = () => {
+      // Désactiver tous les onglets
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(c => c.classList.remove('active'));
+      
+      // Activer l'onglet cliqué
+      tab.classList.add('active');
+      const tabId = tab.dataset.tab + '-tab';
+      $(`#${tabId}`).classList.add('active');
+    };
+  });
+}
+
 // Fonction pour afficher les sections
 async function renderSections() {
   try {
@@ -349,10 +471,6 @@ async function renderSections() {
     // Liste admin
     sections.forEach(s => {
       const li = document.createElement('li');
-      li.style.display = 'flex';
-      li.style.justifyContent = 'space-between';
-      li.style.alignItems = 'center';
-      li.style.marginBottom = '4px';
       li.innerHTML = `
         <span>${s.name}</span>
         <span>
@@ -453,6 +571,12 @@ async function startEditSection(id) {
 
     editingSectionId = id;
     $('#section-input').value = s.name;
+    
+    // Basculer vers l'onglet sections
+    qs('.admin-tab').forEach(t => t.classList.remove('active'));
+    qs('.tab-content').forEach(c => c.classList.remove('active'));
+    $('.admin-tab[data-tab="sections"]').classList.add('active');
+    $('#sections-tab').classList.add('active');
   } catch (error) {
     console.error('Error in startEditSection:', error);
   }
@@ -573,6 +697,12 @@ async function startEdit(id) {
     if (p.image) {
       $('#preview').innerHTML = `<img src="${p.image}" style="max-width:100%;max-height:100%">`;
     }
+
+    // Basculer vers l'onglet produits
+    qs('.admin-tab').forEach(t => t.classList.remove('active'));
+    qs('.tab-content').forEach(c => c.classList.remove('active'));
+    $('.admin-tab[data-tab="products"]').classList.add('active');
+    $('#products-tab').classList.add('active');
 
     if (window.innerWidth <= 600) {
       $('#admin-panel').scrollIntoView({ behavior: 'smooth' });
@@ -945,6 +1075,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderProducts();
     updateAdminUI();
 
+    // Initialiser les onglets admin
+    initAdminTabs();
+
     // Événements
     $('#admin-btn').onclick = () => {
       const pw = prompt("Réservé à l'administrateur");
@@ -1010,4 +1143,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-

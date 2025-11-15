@@ -487,7 +487,6 @@ async function addOrUpdate() {
     if (!n) return alert('Nom requis');
     if (!secId) return alert('Section requise');
 
-    // Préparer FormData pour l'envoi
     const formData = new FormData();
     formData.append('name', n);
     formData.append('price', pr.toString());
@@ -499,13 +498,15 @@ async function addOrUpdate() {
       formData.append('image', f);
     }
 
+    console.log('📤 Envoi des données:', { n, pr, d, secId, hasImage: !!f }); // AJOUTEZ CETTE LIGNE
+
     let result;
     if (editingId) {
       const response = await fetch(`${API.products}/${editingId}`, {
         method: 'PUT',
         body: formData
       });
-
+      console.log('📝 Réponse modification:', response.status); // AJOUTEZ CETTE LIGNE
       if (!response.ok) throw new Error('Erreur lors de la modification');
       result = await response.json();
     } else {
@@ -513,15 +514,17 @@ async function addOrUpdate() {
         method: 'POST',
         body: formData
       });
-
+      console.log('➕ Réponse ajout:', response.status); // AJOUTEZ CETTE LIGNE
       if (!response.ok) throw new Error('Erreur lors de l\'ajout');
       result = await response.json();
     }
 
+    console.log('✅ Produit créé/modifié:', result); // AJOUTEZ CETTE LIGNE
+
     clearForm();
     await renderProducts();
   } catch (error) {
-    console.error('Error in addOrUpdate:', error);
+    console.error('❌ Error in addOrUpdate:', error);
     alert('Erreur ajout / modification produit');
   }
 }
@@ -610,13 +613,20 @@ function buildSectionNav(sections) {
 // Affichage des produits
 async function renderProducts() {
   try {
+    console.log('🔄 Début de renderProducts');
     const grid = $('#products-grid');
-    if (!grid) return;
+    if (!grid) {
+      console.error('❌ products-grid non trouvé');
+      return;
+    }
 
     grid.innerHTML = '';
 
     const products = await loadProducts();
-    let sections = await loadSections();
+    console.log('📦 Produits chargés:', products); // AJOUTEZ CETTE LIGNE
+
+    const sections = await loadSections();
+    console.log('📁 Sections chargées:', sections); // AJOUTEZ CETTE LIGNE
     const q = normalizeString($('#search').value.trim());
     const sectionFilter = $('#section-filter').value;
     const sortVal = $('#sort').value;
@@ -667,36 +677,40 @@ async function renderProducts() {
       sectGrid.className = 'grid';
 
       for (const product of sectProducts) {
-        const card = document.createElement('article');
-        card.className = 'card';
+        console.log('🎯 Affichage produit:', product.name, 'Image:', product.image);
+  const card = document.createElement('article');
+  card.className = 'card';
 
-        const imageSrc = product.image || '';
-        const imageHtml = product.image
-          ? `<img src="${imageSrc}" alt="${product.name}">`
-          : '<div class="muted">Aucune image</div>';
+  // CORRECTION CLOUDINARY - Utilisez l'URL directe
+  const imageSrc = product.image || '';
+  console.log('🖼️ Image URL pour', product.name, ':', imageSrc); // AJOUTEZ CETTE LIGNE
+  
+  const imageHtml = imageSrc
+    ? `<img src="${imageSrc}" alt="${product.name}" onerror="console.error('❌ Image failed to load:', this.src)">`
+    : '<div class="muted">Aucune image</div>';
 
-        card.innerHTML = `
-          <div class="thumb">${imageHtml}</div>
-          <div class="card-body">
-            <div class="name">${product.name}</div>
-            <div class="desc">${product.description || ''}</div>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div class="price">${(product.price || 0).toLocaleString()} Fcfa</div>
-              <div class="card-actions">
-                <a class="small btn" href="${whatsappUrl(product)}" target="_blank">${t('order')}</a>
-                ${isAdmin() ? `
-                  <div class="admin-actions">
-                    <button class="small btn secondary edit" data-id="${product.id}">Edit</button>
-                    <button class="small btn secondary del" data-id="${product.id}">Suppr</button>
-                  </div>
-                ` : ''}
-              </div>
+  card.innerHTML = `
+    <div class="thumb">${imageHtml}</div>
+    <div class="card-body">
+      <div class="name">${product.name}</div>
+      <div class="desc">${product.description || ''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="price">${(product.price || 0).toLocaleString()} Fcfa</div>
+        <div class="card-actions">
+          <a class="small btn" href="${whatsappUrl(product)}" target="_blank">${t('order')}</a>
+          ${isAdmin() ? `
+            <div class="admin-actions">
+              <button class="small btn secondary edit" data-id="${product.id}">Edit</button>
+              <button class="small btn secondary del" data-id="${product.id}">Suppr</button>
             </div>
-          </div>
-        `;
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
 
-        sectGrid.appendChild(card);
-      }
+  sectGrid.appendChild(card);
+}
 
       secDiv.appendChild(sectGrid);
       grid.appendChild(secDiv);
@@ -822,6 +836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
+
 
 
 

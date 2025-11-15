@@ -103,9 +103,153 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   border-bottom:1px solid #eaeaea;
 }
 
-#section-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 24px 0}
-#section-nav button{background:transparent;color:var(--accent);border:1px solid rgba(142,68,173,0.15);padding:8px 12px;border-radius:999px;cursor:pointer}
-#section-nav button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* Styles pour la navigation compacte */
+#section-nav-container {
+  position: relative;
+  margin: 12px 0 24px 0;
+}
+
+#section-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  transition: all 0.3s ease;
+}
+
+#section-nav button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(142,68,173,0.15);
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+#section-nav button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#section-nav button:hover:not(.active) {
+  background: rgba(142,68,173,0.1);
+}
+
+/* Bouton menu déroulant pour petits écrans */
+#section-nav-toggle {
+  display: none;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+/* Menu latéral pour les sections */
+#section-nav-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+}
+
+#section-nav-sidebar {
+  position: fixed;
+  top: 0;
+  right: -300px;
+  width: 280px;
+  height: 100%;
+  background: white;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+  z-index: 101;
+  transition: right 0.3s ease;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#section-nav-sidebar.show {
+  right: 0;
+}
+
+#section-nav-sidebar h3 {
+  margin-top: 0;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 10px;
+}
+
+#section-nav-sidebar-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+#section-nav-sidebar-buttons button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(142,68,173,0.15);
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+#section-nav-sidebar-buttons button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#section-nav-sidebar-buttons button:hover:not(.active) {
+  background: rgba(142,68,173,0.1);
+}
+
+#close-sidebar {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+/* Styles responsifs pour la navigation */
+@media (max-width: 768px) {
+  #section-nav {
+    display: none;
+  }
+  
+  #section-nav-toggle {
+    display: inline-block;
+  }
+  
+  #section-nav.show-on-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+  }
+}
+
+@media (min-width: 769px) {
+  #section-nav-overlay,
+  #section-nav-sidebar {
+    display: none !important;
+  }
+}
 
 /* Styles pour les onglets admin */
 .admin-tabs {
@@ -216,7 +360,19 @@ footer{padding:20px;text-align:center;color:var(--muted);font-size:14px}
 </header>
 
 <main class="container">
-  <div id="section-nav"></div>
+  <div id="section-nav-container">
+    <button id="section-nav-toggle">...</button>
+    <div id="section-nav"></div>
+  </div>
+  
+  <!-- Menu latéral pour mobile -->
+  <div id="section-nav-overlay"></div>
+  <div id="section-nav-sidebar">
+    <button id="close-sidebar">&times;</button>
+    <h3>Sections</h3>
+    <div id="section-nav-sidebar-buttons"></div>
+  </div>
+  
   <section class="controls">
     <input id="search" class="search" type="search" placeholder="Rechercher un produit ou une section...">
     <select id="sort">
@@ -734,12 +890,15 @@ function whatsappUrl(p) {
   return base + '?text=' + encodeURIComponent(msg);
 }
 
-// Navigation par sections - VERSION CORRIGÉE
+// Navigation par sections - VERSION AVEC MENU COMPACT
 function buildSectionNav(sections) {
   const nav = $('#section-nav');
-  if (!nav) return;
+  const sidebarButtons = $('#section-nav-sidebar-buttons');
+  
+  if (!nav || !sidebarButtons) return;
 
   nav.innerHTML = '';
+  sidebarButtons.innerHTML = '';
 
   // Bouton "Toutes"
   const allBtn = document.createElement('button');
@@ -748,11 +907,28 @@ function buildSectionNav(sections) {
   allBtn.onclick = () => {
     console.log('🎯 Clic sur "Toutes"');
     qs('#section-nav button').forEach(b => b.classList.remove('active'));
+    qs('#section-nav-sidebar-buttons button').forEach(b => b.classList.remove('active'));
     allBtn.classList.add('active');
     $('#section-filter').value = '';
     renderProducts();
+    closeSidebar();
   };
   nav.appendChild(allBtn);
+
+  // Bouton "Toutes" pour le menu latéral
+  const allBtnSidebar = document.createElement('button');
+  allBtnSidebar.textContent = 'Toutes';
+  allBtnSidebar.classList.add('active');
+  allBtnSidebar.onclick = () => {
+    console.log('🎯 Clic sur "Toutes" (sidebar)');
+    qs('#section-nav button').forEach(b => b.classList.remove('active'));
+    qs('#section-nav-sidebar-buttons button').forEach(b => b.classList.remove('active'));
+    allBtnSidebar.classList.add('active');
+    $('#section-filter').value = '';
+    renderProducts();
+    closeSidebar();
+  };
+  sidebarButtons.appendChild(allBtnSidebar);
 
   // Trier les sections par date de mise à jour
   sections.sort((a, b) => {
@@ -768,6 +944,7 @@ function buildSectionNav(sections) {
     
     console.log('📋 Création bouton pour la section:', sectionName, 'ID:', sectionId);
 
+    // Bouton pour la navigation principale
     const btn = document.createElement('button');
     btn.textContent = sectionName;
     btn.setAttribute('data-section-id', sectionId);
@@ -777,6 +954,7 @@ function buildSectionNav(sections) {
       
       // Mettre à jour les classes actives
       qs('#section-nav button').forEach(b => b.classList.remove('active'));
+      qs('#section-nav-sidebar-buttons button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       
       // Mettre à jour le filtre et rafraîchir
@@ -795,22 +973,68 @@ function buildSectionNav(sections) {
     };
     
     nav.appendChild(btn);
+
+    // Bouton pour le menu latéral
+    const btnSidebar = document.createElement('button');
+    btnSidebar.textContent = sectionName;
+    btnSidebar.setAttribute('data-section-id', sectionId);
+    
+    btnSidebar.onclick = () => {
+      console.log('🎯 Clic sur section (sidebar):', sectionName, 'ID:', sectionId);
+      
+      // Mettre à jour les classes actives
+      qs('#section-nav button').forEach(b => b.classList.remove('active'));
+      qs('#section-nav-sidebar-buttons button').forEach(b => b.classList.remove('active'));
+      btnSidebar.classList.add('active');
+      
+      // Mettre à jour le filtre et rafraîchir
+      $('#section-filter').value = sectionId;
+      renderProducts().then(() => {
+        // Scroll vers la section après le rendu
+        const sectionElement = document.querySelector(`[data-section="${sectionId}"]`);
+        if (sectionElement) {
+          sectionElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+        }
+      });
+      
+      closeSidebar();
+    };
+    
+    sidebarButtons.appendChild(btnSidebar);
   });
 
   console.log('✅ Navigation par sections créée avec', sections.length, 'sections');
+}
+
+// Gestion du menu latéral
+function openSidebar() {
+  $('#section-nav-overlay').style.display = 'block';
+  $('#section-nav-sidebar').classList.add('show');
+}
+
+function closeSidebar() {
+  $('#section-nav-overlay').style.display = 'none';
+  $('#section-nav-sidebar').classList.remove('show');
 }
 
 // Synchroniser la navigation et le select de filtre
 function syncSectionFilter() {
   const sectionFilter = $('#section-filter').value;
   const navButtons = qs('#section-nav button');
+  const sidebarButtons = qs('#section-nav-sidebar-buttons button');
   
   // Retirer toutes les classes active
   navButtons.forEach(btn => btn.classList.remove('active'));
+  sidebarButtons.forEach(btn => btn.classList.remove('active'));
   
   if (!sectionFilter) {
     // Activer "Toutes"
     navButtons[0]?.classList.add('active');
+    sidebarButtons[0]?.classList.add('active');
   } else {
     // Activer le bouton correspondant
     const activeBtn = navButtons.find(btn => 
@@ -818,6 +1042,13 @@ function syncSectionFilter() {
     );
     if (activeBtn) {
       activeBtn.classList.add('active');
+    }
+    
+    const activeSidebarBtn = sidebarButtons.find(btn => 
+      btn.getAttribute('data-section-id') === sectionFilter
+    );
+    if (activeSidebarBtn) {
+      activeSidebarBtn.classList.add('active');
     }
   }
 }
@@ -1078,6 +1309,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser les onglets admin
     initAdminTabs();
 
+    // Événements pour la navigation compacte
+    $('#section-nav-toggle').onclick = openSidebar;
+    $('#close-sidebar').onclick = closeSidebar;
+    $('#section-nav-overlay').onclick = closeSidebar;
+
     // Événements
     $('#admin-btn').onclick = () => {
       const pw = prompt("Réservé à l'administrateur");
@@ -1143,4 +1379,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-

@@ -379,12 +379,11 @@ async function updateSectionSelects(sections) {
   if (!sel) return;
 
   sel.innerHTML = '<option value="">-- Choisir une section --</option>';
-  // TRIER LES SECTIONS PAR ID DÉCROISSANT
-  sections.sort((a, b) => b.id - a.id);
   sections.forEach(s => {
     const opt = document.createElement('option');
-    opt.value = s.id;
+    opt.value = s._id || s.id; // MODIFIEZ CETTE LIGNE (important !)
     opt.textContent = s.name;
+    console.log('📋 Option section:', s._id || s.id, s.name); // AJOUTEZ CETTE LIGNE
     sel.appendChild(opt);
   });
 }
@@ -482,10 +481,14 @@ async function addOrUpdate() {
     const n = $('#name-input').value.trim();
     const pr = parseFloat($('#price-input').value) || 0;
     const d = $('#desc-input').value.trim();
-    const secId = $('#section-select').value;
+    const secId = $('#section-select').value; // Cette ligne peut être le problème
+
+    console.log('🔍 Section ID récupérée:', secId, 'Type:', typeof secId); // AJOUTEZ CETTE LIGNE
 
     if (!n) return alert('Nom requis');
-    if (!secId) return alert('Section requise');
+    if (!secId || secId === 'undefined') { // MODIFIEZ CETTE LIGNE
+      return alert('Section requise - Veuillez sélectionner une section valide');
+    }
 
     const formData = new FormData();
     formData.append('name', n);
@@ -498,7 +501,13 @@ async function addOrUpdate() {
       formData.append('image', f);
     }
 
-    console.log('📤 Envoi des données:', { n, pr, d, secId, hasImage: !!f }); // AJOUTEZ CETTE LIGNE
+    console.log('📤 Envoi des données:', { 
+      name: n, 
+      price: pr, 
+      description: d, 
+      sectionId: secId, 
+      hasImage: !!f 
+    });
 
     let result;
     if (editingId) {
@@ -506,7 +515,7 @@ async function addOrUpdate() {
         method: 'PUT',
         body: formData
       });
-      console.log('📝 Réponse modification:', response.status); // AJOUTEZ CETTE LIGNE
+      console.log('📝 Réponse modification:', response.status);
       if (!response.ok) throw new Error('Erreur lors de la modification');
       result = await response.json();
     } else {
@@ -514,25 +523,29 @@ async function addOrUpdate() {
         method: 'POST',
         body: formData
       });
-      console.log('➕ Réponse ajout:', response.status); // AJOUTEZ CETTE LIGNE
+      console.log('➕ Réponse ajout:', response.status);
       if (!response.ok) throw new Error('Erreur lors de l\'ajout');
       result = await response.json();
     }
 
-    console.log('✅ Produit créé/modifié:', result); // AJOUTEZ CETTE LIGNE
+    console.log('✅ Produit créé/modifié:', result);
 
     clearForm();
-    await renderProducts();
+    
+    // Rafraîchir pour voir les changements
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+    
   } catch (error) {
     console.error('❌ Error in addOrUpdate:', error);
     alert('Erreur ajout / modification produit');
   }
 }
-
 async function startEdit(id) {
   try {
     const products = await loadProducts();
-    const p = products.find(x => x.id === id);
+    const p = products.find(x => (x._id || x.id) === id); // MODIFIEZ CETTE LIGNE
     if (!p) return;
 
     editingId = id;
@@ -542,7 +555,7 @@ async function startEdit(id) {
     $('#section-select').value = p.sectionId || '';
 
     if (p.image) {
-      $('#preview').innerHTML = `<img src="${API.base}${p.image}" style="max-width:100%;max-height:100%">`;
+      $('#preview').innerHTML = `<img src="${p.image}" style="max-width:100%;max-height:100%">`;
     }
 
     if (window.innerWidth <= 600) {
@@ -564,7 +577,6 @@ async function handleDeleteProduct(id) {
     alert('Erreur lors de la suppression du produit');
   }
 }
-
 // Fonction pour générer l'URL WhatsApp
 function whatsappUrl(p) {
   const base = 'https://wa.me/' + CONFIG.whatsapp.replace(/\D/g, '');
@@ -611,6 +623,7 @@ function buildSectionNav(sections) {
 }
 
 // Affichage des produits
+// Affichage des produits
 async function renderProducts() {
   try {
     console.log('🔄 Début de renderProducts');
@@ -623,10 +636,11 @@ async function renderProducts() {
     grid.innerHTML = '';
 
     const products = await loadProducts();
-    console.log('📦 Produits chargés:', products); // AJOUTEZ CETTE LIGNE
+    console.log('📦 Produits chargés:', products);
 
     const sections = await loadSections();
-    console.log('📁 Sections chargées:', sections); // AJOUTEZ CETTE LIGNE
+    console.log('📁 Sections chargées:', sections);
+
     const q = normalizeString($('#search').value.trim());
     const sectionFilter = $('#section-filter').value;
     const sortVal = $('#sort').value;
@@ -639,78 +653,134 @@ async function renderProducts() {
       sortedProducts.sort((a, b) => b.price - a.price);
     } else {
       // Tri par défaut : ID décroissant (les plus récents en premier)
-      sortedProducts.sort((a, b) => b.id - a.id);
+      sortedProducts.sort((a, b) => {
+        const idA = a._id || a.id;
+        const idB = b._id || b.id;
+        return idB.localeCompare(idA);
+      });
     }
-
-    // TRIER LES SECTIONS PAR ID DÉCROISSANT
-    sections.sort((a, b) => b.id - a.id);
 
     // IDs des sections correspondant à la recherche
     const matchedSectionIds = new Set();
     if (q) {
       sections.forEach(s => {
-        if (normalizeString(s.name).includes(q)) matchedSectionIds.add(s.id);
+        if (normalizeString(s.name).includes(q)) matchedSectionIds.add(s._id || s.id);
       });
     }
 
-    // Afficher par section (déjà triées)
+    // Afficher par section
     for (const section of sections) {
-      if (sectionFilter && section.id !== sectionFilter) continue;
+      const sectionId = section._id || section.id;
+      if (sectionFilter && sectionId !== sectionFilter) continue;
 
-      let sectProducts = sortedProducts.filter(p => p.sectionId === section.id);
+      let sectProducts = sortedProducts.filter(p => (p.sectionId || p.sectionId) === sectionId);
 
       // Appliquer la recherche
       if (q) {
         sectProducts = sectProducts.filter(p => {
           const productText = normalizeString((p.name || '') + ' ' + (p.description || ''));
-          return productText.includes(q) || matchedSectionIds.has(section.id);
+          return productText.includes(q) || matchedSectionIds.has(sectionId);
         });
       }
 
       if (sectProducts.length === 0) continue;
 
       const secDiv = document.createElement('div');
-      secDiv.setAttribute('data-section', section.id);
-      secDiv.innerHTML = `<h3 id="section-${section.id}">${section.name}</h3>`;
+      secDiv.setAttribute('data-section', sectionId);
+      secDiv.innerHTML = `<h3 id="section-${sectionId}">${section.name}</h3>`;
 
       const sectGrid = document.createElement('div');
       sectGrid.className = 'grid';
 
       for (const product of sectProducts) {
-        console.log('🎯 Affichage produit:', product.name, 'Image:', product.image);
-  const card = document.createElement('article');
-  card.className = 'card';
+        console.log('🎯 Affichage produit:', product.name, 'Image:', product.image, 'Section:', product.sectionId);
 
-  // CORRECTION CLOUDINARY - Utilisez l'URL directe
-  const imageSrc = product.image || '';
-  console.log('🖼️ Image URL pour', product.name, ':', imageSrc); // AJOUTEZ CETTE LIGNE
-  
-  const imageHtml = imageSrc
-    ? `<img src="${imageSrc}" alt="${product.name}" onerror="console.error('❌ Image failed to load:', this.src)">`
-    : '<div class="muted">Aucune image</div>';
+        const card = document.createElement('article');
+        card.className = 'card';
 
-  card.innerHTML = `
-    <div class="thumb">${imageHtml}</div>
-    <div class="card-body">
-      <div class="name">${product.name}</div>
-      <div class="desc">${product.description || ''}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="price">${(product.price || 0).toLocaleString()} Fcfa</div>
-        <div class="card-actions">
-          <a class="small btn" href="${whatsappUrl(product)}" target="_blank">${t('order')}</a>
-          ${isAdmin() ? `
-            <div class="admin-actions">
-              <button class="small btn secondary edit" data-id="${product.id}">Edit</button>
-              <button class="small btn secondary del" data-id="${product.id}">Suppr</button>
+        const imageSrc = product.image || '';
+        const imageHtml = imageSrc
+          ? `<img src="${imageSrc}" alt="${product.name}" onerror="console.error('❌ Image failed to load:', this.src)">`
+          : '<div class="muted">Aucune image</div>';
+
+        const productId = product._id || product.id;
+        
+        card.innerHTML = `
+          <div class="thumb">${imageHtml}</div>
+          <div class="card-body">
+            <div class="name">${product.name}</div>
+            <div class="desc">${product.description || ''}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="price">${(product.price || 0).toLocaleString()} Fcfa</div>
+              <div class="card-actions">
+                <a class="small btn" href="${whatsappUrl(product)}" target="_blank">${t('order')}</a>
+                ${isAdmin() ? `
+                  <div class="admin-actions">
+                    <button class="small btn secondary edit" data-id="${productId}">Edit</button>
+                    <button class="small btn secondary del" data-id="${productId}">Suppr</button>
+                  </div>
+                ` : ''}
+              </div>
             </div>
-          ` : ''}
-        </div>
-      </div>
-    </div>
-  `;
+          </div>
+        `;
 
-  sectGrid.appendChild(card);
-}
+        sectGrid.appendChild(card);
+      }
+
+      secDiv.appendChild(sectGrid);
+      grid.appendChild(secDiv);
+    }
+
+    // Afficher les produits sans section (sectionId undefined ou 'undefined')
+    const productsWithoutSection = sortedProducts.filter(p => 
+      !p.sectionId || p.sectionId === 'undefined' || p.sectionId === 'null'
+    );
+
+    if (productsWithoutSection.length > 0) {
+      console.log('📦 Produits sans section:', productsWithoutSection);
+      
+      const secDiv = document.createElement('div');
+      secDiv.setAttribute('data-section', 'undefined');
+      secDiv.innerHTML = `<h3 id="section-undefined">⚠️ Produits non classés</h3>`;
+      const sectGrid = document.createElement('div');
+      sectGrid.className = 'grid';
+
+      for (const product of productsWithoutSection) {
+        console.log('🎯 Affichage produit non classé:', product.name, 'Image:', product.image);
+        
+        const card = document.createElement('article');
+        card.className = 'card';
+
+        const imageSrc = product.image || '';
+        const imageHtml = imageSrc
+          ? `<img src="${imageSrc}" alt="${product.name}">`
+          : '<div class="muted">Aucune image</div>';
+
+        const productId = product._id || product.id;
+
+        card.innerHTML = `
+          <div class="thumb">${imageHtml}</div>
+          <div class="card-body">
+            <div class="name">${product.name}</div>
+            <div class="desc">${product.description || ''}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="price">${(product.price || 0).toLocaleString()} Fcfa</div>
+              <div class="card-actions">
+                <a class="small btn" href="${whatsappUrl(product)}" target="_blank">${t('order')}</a>
+                ${isAdmin() ? `
+                  <div class="admin-actions">
+                    <button class="small btn secondary edit" data-id="${productId}">Edit</button>
+                    <button class="small btn secondary del" data-id="${productId}">Suppr</button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+
+        sectGrid.appendChild(card);
+      }
 
       secDiv.appendChild(sectGrid);
       grid.appendChild(secDiv);
@@ -735,8 +805,11 @@ async function renderProducts() {
     qs('.del').forEach(btn => {
       btn.onclick = () => handleDeleteProduct(btn.dataset.id);
     });
+
+    console.log('✅ renderProducts terminé');
+
   } catch (error) {
-    console.error('Error in renderProducts:', error);
+    console.error('❌ Error in renderProducts:', error);
   }
 }
 
@@ -836,6 +909,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
+
 
 
 
